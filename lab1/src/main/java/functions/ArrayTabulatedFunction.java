@@ -2,7 +2,7 @@ package functions;
 
 import java.util.Arrays;
 
-public class ArrayTabulatedFunction extends AbstractTabulatedFunction {
+public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements Insertable {
     private double[] xValues;
     private double[] yValues;
 
@@ -120,4 +120,35 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction {
     protected double interpolate(double x, int floorIndex) {
         return interpolate(x, xValues[floorIndex], xValues[floorIndex + 1], yValues[floorIndex], yValues[floorIndex + 1]);
     }
+    public void insert(double x, double y) {
+        // Проверяем есть ли уже такое x в массиве
+        int existingIndex = indexOfX(x);
+        if (existingIndex != -1) {
+            // Если x уже существует заменяем значение y
+            yValues[existingIndex] = y;
+            return;
+        }
+        // Если x не найден - нужно добавить новую точку
+        double[] newXValues = new double[count + 1];
+        double[] newYValues = new double[count + 1];
+        int insertIndex = 0;
+        while (insertIndex < count && xValues[insertIndex] < x) {
+            insertIndex++;
+        }
+        if (insertIndex > 0) {
+            System.arraycopy(xValues, 0, newXValues, 0, insertIndex);
+            System.arraycopy(yValues, 0, newYValues, 0, insertIndex);
+        }
+        newXValues[insertIndex] = x;
+        newYValues[insertIndex] = y;
+        if (insertIndex < count) {
+            System.arraycopy(xValues, insertIndex, newXValues, insertIndex + 1, count - insertIndex);
+            System.arraycopy(yValues, insertIndex, newYValues, insertIndex + 1, count - insertIndex);
+        }
+        xValues = newXValues;
+        yValues = newYValues;
+        count++;
+    }
+
 }
+
