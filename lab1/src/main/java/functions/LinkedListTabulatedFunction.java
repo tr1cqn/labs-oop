@@ -2,7 +2,7 @@ package functions;
 
 public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
 
-
+    // Вспомогательный класс узла списка
     private static class Node {
         public double x;
         public double y;
@@ -21,14 +21,14 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
             throw new IllegalArgumentException("Необходимо минимум 2 точки");
         }
 
-        // упорядоченность xValues
+        // Проверяем упорядоченность xValues
         for (int i = 1; i < xValues.length; i++) {
             if (xValues[i] <= xValues[i - 1]) {
                 throw new IllegalArgumentException("Значения x должны быть строго возрастающими");
             }
         }
 
-        // count через добавление узлов
+        //  count через добавление узлов
         this.count = 0;
 
         // Добавляем узлы через цикл
@@ -68,6 +68,11 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
         }
     }
 
+    @Override
+    public int getCount() {
+        return count;
+    }
+
     // Приватный метод добавления узла в конец списка
     private void addNode(double x, double y) {
         Node newNode = new Node();
@@ -75,7 +80,7 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
         newNode.y = y;
 
         if (head == null) {
-            // Список пустой - новый узел становится головой
+            // Список пустой новый узел становится головой
             head = newNode;
             head.next = head;
             head.prev = head;
@@ -83,12 +88,13 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
             // Список не пустой добавляем в конец
             Node last = head.prev;
 
+            // Связываем последний узел с новым
             last.next = newNode;
             newNode.prev = last;
+
+            // Связываем новый узел с головой
             newNode.next = head;
             head.prev = newNode;
-
-            last.prev = newNode;
         }
         count++;
     }
@@ -107,7 +113,7 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
             }
             return current;
         } else {
-            // Если индекс во второй половине  идем с хвоста
+            // Если индекс во второй половине идем с хвоста
             Node current = head.prev;
             for (int i = count - 1; i > index; i--) {
                 current = current.prev;
@@ -117,11 +123,6 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
     }
 
     // Реализация методов TabulatedFunction
-
-    @Override
-    public int getCount() {
-        return 0;
-    }
 
     @Override
     public double getX(int index) {
@@ -179,7 +180,7 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
         if (head == null) {
             throw new IllegalStateException("Функция пуста");
         }
-        return head.next.x;
+        return head.prev.x;
     }
 
     // Реализация абстрактных методов
@@ -215,7 +216,7 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
     @Override
     protected double extrapolateLeft(double x) {
         if (count == 1) {
-            return head.y; // Если только одна точка
+            return head.y;
         }
         Node left = head;
         Node right = head.next;
@@ -225,17 +226,17 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
     @Override
     protected double extrapolateRight(double x) {
         if (count == 1) {
-            return head.y; // Если только одна точка
+            return head.y;
         }
-        Node left = head;
-        Node right = head.next;
+        Node left = head.prev.prev;
+        Node right = head.prev;
         return interpolate(x, left.x, right.x, left.y, right.y);
     }
 
     @Override
     protected double interpolate(double x, int floorIndex) {
         if (count == 1) {
-            return head.y; // Если только одна точка
+            return head.y;
         }
         Node leftNode = getNode(floorIndex);
         Node rightNode = leftNode.next;
