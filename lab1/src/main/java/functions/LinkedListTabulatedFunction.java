@@ -242,10 +242,29 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
         Node rightNode = leftNode.next;
         return interpolate(x, leftNode.x, rightNode.x, leftNode.y, rightNode.y);
     }
+    public void remove(int index) {
+        if (index < 0 || index >= count) {
+            throw new IndexOutOfBoundsException("Индекс: " + index + ", Размер: " + count);
+        }
+        // Метод getNode(index) находит узел по индексу в списке
+        Node toRemove = getNode(index);
 
+        if (count == 1) {
+            // Просто обнуляем голову списка список становится пустым
+            head = null;
+        } else {
+            //  У узла toRemove.prev устанавливаем next на toRemove.next
+            toRemove.prev.next = toRemove.next;
 
+            // узла toRemove.next устанавливаем prev на toRemove.prev
+            toRemove.next.prev = toRemove.prev;
 
-
-
-
+            // Проверяем, не является ли удаляемый узел головой списка
+            if (toRemove == head) {
+                // Если удаляем голову, то новая голова - следующий узел
+                head = head.next;
+            }
+        }
+        count--;
+    }
 }
