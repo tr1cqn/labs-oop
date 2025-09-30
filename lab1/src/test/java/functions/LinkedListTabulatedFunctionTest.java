@@ -220,4 +220,102 @@ class LinkedListComplexFunctionsTest {
         // для x=2.0: f(2.0)=4.0, f(4.0)=8.0 (экстраполяция)
         assertEquals(8.0, composite.apply(2.0), 1e-10);
     }
+// Тесты для remove
+        @Test
+        void testRemoveFromMiddle() {
+            // Тест удаления элемента из середины списка
+            double[] xValues = {1.0, 2.0, 3.0, 4.0};
+            double[] yValues = {10.0, 20.0, 30.0, 40.0};
+            LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+            func.remove(1);
+            // Проверяем, что количество элементов уменьшилось
+            assertEquals(3, func.getCount());
+            // Проверяем правильность порядка оставшихся элементов
+            assertEquals(1.0, func.getX(0), 1e-10);
+            assertEquals(3.0, func.getX(1), 1e-10);
+            assertEquals(4.0, func.getX(2), 1e-10);
+        }
+
+        @Test
+        void testRemoveFromBeginning() {
+            // Тест удаления первого элемента списка
+            double[] xValues = {1.0, 2.0, 3.0};
+            double[] yValues = {10.0, 20.0, 30.0};
+            LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+            // Удаляем первый элемент (индекс 0)
+            func.remove(0);
+
+            // Проверяем количество элементов и порядок
+            assertEquals(2, func.getCount());
+            assertEquals(2.0, func.getX(0), 1e-10);
+            assertEquals(3.0, func.getX(1), 1e-10);
+            assertEquals(2.0, func.leftBound(), 1e-10);
+        }
+
+        @Test
+        void testRemoveFromEnd() {
+            // Тест удаления последнего элемента списка
+            double[] xValues = {1.0, 2.0, 3.0};
+            double[] yValues = {10.0, 20.0, 30.0};
+            LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+            // Удаляем последний элемент (индекс 2)
+            func.remove(2);
+
+            // Проверяем количество элементов и порядок
+            assertEquals(2, func.getCount());
+            assertEquals(1.0, func.getX(0), 1e-10);
+            assertEquals(2.0, func.getX(1), 1e-10);
+            assertEquals(2.0, func.rightBound(), 1e-10);
+        }
+
+        @Test
+        void testRemoveInvalidIndex() {
+            // Тест обработки некорректных индексов
+            double[] xValues = {1.0, 2.0, 3.0};
+            double[] yValues = {10.0, 20.0, 30.0};
+            LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+            // Отрицательный индекс должен вызывать исключение
+            assertThrows(IndexOutOfBoundsException.class, () -> func.remove(-1));
+            // Индекс больше размера списка должен вызывать исключение
+            assertThrows(IndexOutOfBoundsException.class, () -> func.remove(5));
+        }
+
+        @Test
+        void testRemoveAndFunctionality() {
+            // Тест работы функции после удаления элемента
+            double[] xValues = {1.0, 2.0, 3.0, 4.0};
+            double[] yValues = {10.0, 20.0, 30.0, 40.0};
+            LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+            // Удаляем средний элемент
+            func.remove(1);
+
+            // Проверяем, что функция продолжает работать корректно
+            assertEquals(3, func.getCount());
+            // Проверяем значения в оставшихся точках
+            assertEquals(10.0, func.apply(1.0), 1e-10);
+            assertEquals(30.0, func.apply(3.0), 1e-10);
+            assertEquals(40.0, func.apply(4.0), 1e-10);
+        }
+
+
+        @Test
+        void testRemoveAndBoundsUpdate() {
+            // Тест обновления границ функции после удаления
+            double[] xValues = {1.0, 2.0, 3.0};
+            double[] yValues = {10.0, 20.0, 30.0};
+            LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+            // Удаляем первый элемент - левая граница должна обновиться
+            func.remove(0);
+            assertEquals(2.0, func.leftBound(), 1e-10);
+
+            // Удаляем последний элемент - правая граница должна обновиться
+            func.remove(1);
+            assertEquals(2.0, func.rightBound(), 1e-10);
+        }
 }
