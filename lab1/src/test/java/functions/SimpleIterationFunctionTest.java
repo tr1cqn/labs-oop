@@ -15,9 +15,9 @@ class SimpleIterationFunctionTest {
         };
 
         SimpleIterationFunction solver = new SimpleIterationFunction(phi, 1.0, 50, 1e-10);
-        double result = solver.apply(0);  // Аргумент не важен
+        double result = solver.apply(0);
 
-        assertEquals(Math.sqrt(2), result, 1e-6, "Должен найти √2");
+        assertEquals(Math.sqrt(2), result, 1e-6);
     }
 
     @Test
@@ -32,7 +32,7 @@ class SimpleIterationFunctionTest {
         SimpleIterationFunction solver = new SimpleIterationFunction(phi, 0.0, 50, 1e-10);
         double result = solver.apply(0);
 
-        assertEquals(2.0, result, 1e-6, "Должен найти корень x = 2");
+        assertEquals(2.0, result, 1e-6);
     }
 
     @Test
@@ -47,7 +47,7 @@ class SimpleIterationFunctionTest {
         SimpleIterationFunction solver = new SimpleIterationFunction(phi, 10.0, 50, 1e-10);
         double result = solver.apply(0);
 
-        assertEquals(0.0, result, 1e-6, "Должен сойтись к 0");
+        assertEquals(0.0, result, 1e-6);
     }
 
     @Test
@@ -61,7 +61,7 @@ class SimpleIterationFunctionTest {
 
         SimpleIterationFunction solver = new SimpleIterationFunction(phi, 1.0, 5, 1e-10);
         double result = solver.apply(0);
-        assertTrue(Math.abs(result) > 0, "Должен вернуть последнее значение при отсутствии сходимости");
+        assertTrue(Math.abs(result) > 0);
     }
 
     @Test
