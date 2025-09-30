@@ -2,7 +2,7 @@ package functions;
 
 import java.util.Arrays;
 
-public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements Insertable {
+public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable {
     private double[] xValues;
     private double[] yValues;
 
@@ -149,6 +149,29 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements
         yValues = newYValues;
         count++;
     }
+        // Реализация метода remove из интерфейса Removable
+    @Override
+    public void remove(int index) {
+        if (index < 0 || index >= count) {
+            throw new IndexOutOfBoundsException("Индекс: " + index + ", Размер: " + count);
+        }
 
+        // Создаем новые массивы на 1 элемент меньше
+        double[] newXValues = new double[count - 1];
+        double[] newYValues = new double[count - 1];
+
+        // Копируем элементы до удаляемого индекса
+        System.arraycopy(xValues, 0, newXValues, 0, index);
+        System.arraycopy(yValues, 0, newYValues, 0, index);
+
+        // Копируем элементы после удаляемого индекса
+        System.arraycopy(xValues, index + 1, newXValues, index, count - index - 1);
+        System.arraycopy(yValues, index + 1, newYValues, index, count - index - 1);
+
+        // Заменяем старые массивы новыми
+        xValues = newXValues;
+        yValues = newYValues;
+        count--;
+    }
 }
 
