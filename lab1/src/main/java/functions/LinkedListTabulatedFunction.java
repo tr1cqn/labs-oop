@@ -1,6 +1,6 @@
 package functions;
 
-public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
+public class LinkedListTabulatedFunction extends AbstractTabulatedFunction implements Insertable {
 
     // Вспомогательный класс узла списка
     private static class Node {
@@ -271,5 +271,52 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
             }
         }
         count--;
+    }
+        // Реализация метода insert из интерфейса Insertable
+    @Override
+    public void insert(double x, double y) {
+        // Если список пустой
+        if (head == null) {
+            addNode(x, y);
+            return;
+        }
+
+        // Ищем узел с таким x или место для вставки
+        Node current = head;
+        
+        do {
+            // Если нашли существующий x - заменяем y
+            if (Math.abs(current.x - x) < 1e-10) {
+                current.y = y;
+                return;
+            }
+            
+            // Если нашли место для вставки (текущий x больше вставляемого)
+            if (current.x > x) {
+                break;
+            }
+            
+            current = current.next;
+        } while (current != head);
+
+        // Создаем новый узел
+        Node newNode = new Node();
+        newNode.x = x;
+        newNode.y = y;
+
+        // Вставляем перед current
+        Node prev = current.prev;
+        
+        newNode.prev = prev;
+        newNode.next = current;
+        prev.next = newNode;
+        current.prev = newNode;
+
+        // Если вставляем в начало, обновляем head
+        if (current == head) {
+            head = newNode;
+        }
+
+        count++;
     }
 }
