@@ -202,4 +202,59 @@ class ArrayTabulatedFunctionInsertableTest {
         assertEquals(1.75, func.getX(3), 1e-10);
         assertEquals(2.0, func.getX(4), 1e-10);
     }
+
+    // лр 3
+    @Test
+    void testConstructorWithLessThan2Points() {
+        // Проверка исключения при создании с менее чем 2 точками
+        double[] xValues = {1.0};
+        double[] yValues = {10.0};
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            new ArrayTabulatedFunction(xValues, yValues);
+        });
+    }
+
+    @Test
+    void testFloorIndexOfXWithXLessThanLeftBound() {
+        // Проверка исключения когда x меньше левой границы
+        double[] xValues = {2.0, 3.0, 4.0};
+        double[] yValues = {20.0, 30.0, 40.0};
+        ArrayTabulatedFunction func = new ArrayTabulatedFunction(xValues, yValues);
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            func.floorIndexOfX(1.0); // 1.0 < 2.0 (leftBound)
+        });
+    }
+
+    @Test
+    void testInvalidIndicesInVariousMethods() {
+        double[] xValues = {1.0, 2.0, 3.0};
+        double[] yValues = {10.0, 20.0, 30.0};
+        ArrayTabulatedFunction func = new ArrayTabulatedFunction(xValues, yValues);
+
+        // Проверка всех методов с некорректными индексами
+        assertThrows(IndexOutOfBoundsException.class, () -> func.getX(-1));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.getX(5));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.getY(-1));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.getY(5));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.setY(-1, 15.0));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.setY(5, 15.0));
+    }
+
+    @Test
+    void testInterpolationWithoutSinglePointCheck() {
+        // Проверяем что интерполяция работает без проверки на 1 точку
+        double[] xValues = {1.0, 2.0};
+        double[] yValues = {10.0, 20.0};
+        ArrayTabulatedFunction func = new ArrayTabulatedFunction(xValues, yValues);
+
+        assertEquals(15.0, func.apply(1.5), 1e-10);
+        assertEquals(5.0, func.apply(0.5), 1e-10);  // экстраполяция слева
+        assertEquals(25.0, func.apply(2.5), 1e-10); // экстраполяция справа
+    }
+
+
 }
+
+

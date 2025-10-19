@@ -14,6 +14,12 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
 
     // Конструктор 1 из массивов
     public LinkedListTabulatedFunction(double[] xValues, double[] yValues) {
+        if (xValues.length < 2) {
+            throw new IllegalArgumentException("Минимум 2 точки требуется");
+        }
+        if (xValues.length != yValues.length) {
+            throw new IllegalArgumentException("Массивы должны быть одинаковой длины");
+        }
         if (xValues.length != yValues.length) {
             throw new IllegalArgumentException("Массивы должны быть одинаковой длины");
         }
@@ -39,6 +45,11 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
 
     // Конструктор 2 из функции
     public LinkedListTabulatedFunction(MathFunction source, double xFrom, double xTo, int count) {
+
+        if (count < 2) {
+            throw new IllegalArgumentException("Минимум 2 точки требуется");
+        }
+
         if (count < 2) {
             throw new IllegalArgumentException("Количество точек должно быть не меньше 2");
         }
@@ -190,6 +201,9 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
         if (head == null) {
             throw new IllegalStateException("Функция пуста");
         }
+        if (x < head.x) {
+            throw new IllegalArgumentException("x меньше левой границы: " + x + " < " + head.x);
+        }
 
         // Если x меньше всех значений
         if (x < head.x) {
@@ -215,9 +229,6 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
 
     @Override
     protected double extrapolateLeft(double x) {
-        if (count == 1) {
-            return head.y;
-        }
         Node left = head;
         Node right = head.next;
         return interpolate(x, left.x, right.x, left.y, right.y);
@@ -225,9 +236,6 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
 
     @Override
     protected double extrapolateRight(double x) {
-        if (count == 1) {
-            return head.y;
-        }
         Node left = head.prev.prev;
         Node right = head.prev;
         return interpolate(x, left.x, right.x, left.y, right.y);
@@ -235,9 +243,6 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction {
 
     @Override
     protected double interpolate(double x, int floorIndex) {
-        if (count == 1) {
-            return head.y;
-        }
         Node leftNode = getNode(floorIndex);
         Node rightNode = leftNode.next;
         return interpolate(x, leftNode.x, rightNode.x, leftNode.y, rightNode.y);

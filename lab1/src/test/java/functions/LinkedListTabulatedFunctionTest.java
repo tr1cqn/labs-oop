@@ -318,4 +318,61 @@ class LinkedListComplexFunctionsTest {
             func.remove(1);
             assertEquals(2.0, func.rightBound(), 1e-10);
         }
+
+
+       // ЛР 3
+       @Test
+       void testConstructorWithLessThan2Points() {
+           // Проверка исключения при создании с менее чем 2 точками
+           double[] xValues = {1.0};
+           double[] yValues = {10.0};
+
+           assertThrows(IllegalArgumentException.class, () -> {
+               new LinkedListTabulatedFunction(xValues, yValues);
+           });
+       }
+    @Test
+    void testFloorIndexOfXWithXLessThanLeftBound() {
+        // Проверка исключения когда x меньше левой границы
+        double[] xValues = {2.0, 3.0, 4.0};
+        double[] yValues = {20.0, 30.0, 40.0};
+        LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            func.floorIndexOfX(1.0); // 1.0 < 2.0 (leftBound)
+        });
+    }
+    @Test
+    void testInvalidIndicesInVariousMethods() {
+        double[] xValues = {1.0, 2.0, 3.0};
+        double[] yValues = {10.0, 20.0, 30.0};
+        LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+        // Проверка всех методов с некорректными индексами
+        assertThrows(IndexOutOfBoundsException.class, () -> func.getX(-1));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.getX(5));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.getY(-1));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.getY(5));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.setY(-1, 15.0));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.setY(5, 15.0));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.remove(-1));
+        assertThrows(IndexOutOfBoundsException.class, () -> func.remove(5));
+    }
+
+    @Test
+    void testEmptyFunctionExceptions() {
+        // Создаем функцию и удаляем все элементы
+        double[] xValues = {1.0, 2.0};
+        double[] yValues = {10.0, 20.0};
+        LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+        func.remove(0);
+        func.remove(0);
+
+        // Проверяем исключения для пустой функции
+        assertEquals(0, func.getCount());
+        assertThrows(IllegalStateException.class, () -> func.leftBound());
+        assertThrows(IllegalStateException.class, () -> func.rightBound());
+        assertThrows(IllegalStateException.class, () -> func.floorIndexOfX(1.0));
+    }
 }
