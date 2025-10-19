@@ -1,5 +1,6 @@
 package functions;
 
+import java.util.Iterator;
 import java.util.Arrays;
 
 public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable {
@@ -41,6 +42,11 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements
                 yValues[i] = source.apply(xValues[i]);
             }
         }
+    }
+
+    @Override
+    public Iterator<Point> iterator() {
+        throw new UnsupportedOperationException("Iterator not implemented yet");
     }
 
     @Override
@@ -98,8 +104,6 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements
         if (x < xValues[0]) {
             throw new IllegalArgumentException("x меньше левой границы: " + x + " < " + xValues[0]);
         }
-
-        if (x < xValues[0]) return 0;
         if (x > xValues[count - 1]) return count - 1;
 
         for (int i = 0; i < count - 1; i++) {

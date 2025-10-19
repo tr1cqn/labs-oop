@@ -1,4 +1,5 @@
 package functions;
+import java.util.Iterator;
 
 public abstract class AbstractTabulatedFunction implements TabulatedFunction {
     protected int count;
@@ -27,5 +28,9 @@ public abstract class AbstractTabulatedFunction implements TabulatedFunction {
                 return interpolate(x, floorIndex);
             }
         }
+    }
+    @Override
+    public Iterator<Point> iterator() {
+        throw new UnsupportedOperationException("Итератор пока не реализован");
     }
 }

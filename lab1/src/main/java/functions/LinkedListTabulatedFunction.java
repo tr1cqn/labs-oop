@@ -1,7 +1,8 @@
 package functions;
 
-public class LinkedListTabulatedFunction extends AbstractTabulatedFunction implements Insertable {
+import java.util.Iterator;
 
+public class LinkedListTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable {
     // Вспомогательный класс узла списка
     private static class Node {
         public double x;
@@ -19,12 +20,6 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
         }
         if (xValues.length != yValues.length) {
             throw new IllegalArgumentException("Массивы должны быть одинаковой длины");
-        }
-        if (xValues.length != yValues.length) {
-            throw new IllegalArgumentException("Массивы должны быть одинаковой длины");
-        }
-        if (xValues.length < 2) {
-            throw new IllegalArgumentException("Необходимо минимум 2 точки");
         }
 
         // Проверяем упорядоченность xValues
@@ -48,10 +43,6 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
 
         if (count < 2) {
             throw new IllegalArgumentException("Минимум 2 точки требуется");
-        }
-
-        if (count < 2) {
-            throw new IllegalArgumentException("Количество точек должно быть не меньше 2");
         }
 
         this.count = 0;
@@ -136,6 +127,11 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
     // Реализация методов TabulatedFunction
 
     @Override
+    public Iterator<Point> iterator() {
+        throw new UnsupportedOperationException("Итератор пока не реализован для LinkedListTabulatedFunction");
+    }
+
+    @Override
     public double getX(int index) {
         return getNode(index).x;
     }
@@ -203,11 +199,6 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
         }
         if (x < head.x) {
             throw new IllegalArgumentException("x меньше левой границы: " + x + " < " + head.x);
-        }
-
-        // Если x меньше всех значений
-        if (x < head.x) {
-            return 0;
         }
 
         // Если x больше или равен последнему значению
@@ -319,4 +310,5 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
 
         count++;
     }
+
 }
