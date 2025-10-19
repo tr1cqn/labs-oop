@@ -62,4 +62,6 @@ class LinkedListTabulatedFunctionInsertableTest {
         assertEquals(3.0, func.getX(2));
         assertEquals(30.0, func.getY(2));
     }
+
 }
+

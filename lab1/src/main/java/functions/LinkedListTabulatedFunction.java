@@ -1,6 +1,7 @@
 package functions;
 
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 public class LinkedListTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable {
     // Вспомогательный класс узла списка
@@ -125,12 +126,6 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
     }
 
     // Реализация методов TabulatedFunction
-
-    @Override
-    public Iterator<Point> iterator() {
-        throw new UnsupportedOperationException("Итератор пока не реализован для LinkedListTabulatedFunction");
-    }
-
     @Override
     public double getX(int index) {
         return getNode(index).x;
@@ -264,51 +259,84 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
         count--;
     }
         // Реализация метода insert из интерфейса Insertable
-    @Override
-    public void insert(double x, double y) {
-        // Если список пустой
-        if (head == null) {
-            addNode(x, y);
-            return;
-        }
-
-        // Ищем узел с таким x или место для вставки
-        Node current = head;
-        
-        do {
-            // Если нашли существующий x - заменяем y
-            if (Math.abs(current.x - x) < 1e-10) {
-                current.y = y;
+        @Override
+        public void insert(double x, double y) {
+            // Если список пустой
+            if (head == null) {
+                addNode(x, y);
                 return;
             }
-            
-            // Если нашли место для вставки (текущий x больше вставляемого)
-            if (current.x > x) {
-                break;
+
+            // Ищем узел с таким x или место для вставки
+            Node current = head;
+            boolean found = false;
+            int iterations = 0;
+
+            do {
+                // Если нашли существующий x - заменяем y
+                if (Math.abs(current.x - x) < 1e-10) {
+                    current.y = y;
+                    return;
+                }
+
+                // Если нашли место для вставки (текущий x больше вставляемого)
+                if (current.x > x) {
+                    break;
+                }
+
+                current = current.next;
+                iterations++;
+
+                // Защита от бесконечного цикла
+                if (iterations > count) {
+                    break;
+                }
+            } while (current != head);
+
+            // Создаем новый узел
+            Node newNode = new Node();
+            newNode.x = x;
+            newNode.y = y;
+
+            // Вставляем перед current
+            Node prev = current.prev;
+
+            newNode.prev = prev;
+            newNode.next = current;
+            prev.next = newNode;
+            current.prev = newNode;
+
+            // Если вставляем в начало, обновляем head
+            if (current == head && x < head.x) {
+                head = newNode;
             }
-            
-            current = current.next;
-        } while (current != head);
 
-        // Создаем новый узел
-        Node newNode = new Node();
-        newNode.x = x;
-        newNode.y = y;
-
-        // Вставляем перед current
-        Node prev = current.prev;
-        
-        newNode.prev = prev;
-        newNode.next = current;
-        prev.next = newNode;
-        current.prev = newNode;
-
-        // Если вставляем в начало, обновляем head
-        if (current == head) {
-            head = newNode;
+            count++;
         }
+    @Override
+    public Iterator<Point> iterator() {
+        return new Iterator<Point>() {
+            private Node node = head;
+            private int returnedCount = 0;
 
-        count++;
+            @Override
+            public boolean hasNext() {
+                return returnedCount < count;
+            }
+
+            @Override
+            public Point next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException("Нет больше элементов в списке");
+                }
+
+                Point point = new Point(node.x, node.y);
+                node = node.next;
+                returnedCount++;
+
+                return point;
+            }
+        };
     }
 
 }

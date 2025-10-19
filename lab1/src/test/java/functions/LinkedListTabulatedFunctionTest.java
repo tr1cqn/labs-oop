@@ -2,6 +2,9 @@ package functions;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+
 
 class LinkedListComplexFunctionsTest {
 
@@ -374,5 +377,98 @@ class LinkedListComplexFunctionsTest {
         assertThrows(IllegalStateException.class, () -> func.leftBound());
         assertThrows(IllegalStateException.class, () -> func.rightBound());
         assertThrows(IllegalStateException.class, () -> func.floorIndexOfX(1.0));
+    }
+    @Test
+    void testIteratorWithWhileLoop() {
+        double[] xValues = {1.0, 2.0, 3.0, 4.0};
+        double[] yValues = {10.0, 20.0, 30.0, 40.0};
+        LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+        Iterator<Point> iterator = func.iterator();
+
+        int index = 0;
+        while (iterator.hasNext()) {
+            Point point = iterator.next();
+            assertEquals(xValues[index], point.x, 1e-10);
+            assertEquals(yValues[index], point.y, 1e-10);
+            index++;
+        }
+
+        assertEquals(4, index);
+    }
+
+    @Test
+    void testIteratorWithForEachLoop() {
+        double[] xValues = {1.0, 2.0, 3.0};
+        double[] yValues = {10.0, 20.0, 30.0};
+        LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+        int index = 0;
+        for (Point point : func) {
+            assertEquals(xValues[index], point.x, 1e-10);
+            assertEquals(yValues[index], point.y, 1e-10);
+            index++;
+        }
+
+        assertEquals(3, index);
+    }
+
+    @Test
+    void testIteratorThrowsExceptionWhenNoMoreElements() {
+        double[] xValues = {1.0, 2.0};
+        double[] yValues = {10.0, 20.0};
+        LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+        Iterator<Point> iterator = func.iterator();
+
+        iterator.next();
+        iterator.next();
+
+        assertThrows(NoSuchElementException.class, () -> iterator.next());
+    }
+
+    @Test
+    void testIteratorWithMinimumElements() {
+        // Функция с минимальным количеством точек (2)
+        double[] xValues = {1.0, 2.0};
+        double[] yValues = {10.0, 20.0};
+        LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+        Iterator<Point> iterator = func.iterator();
+
+        assertTrue(iterator.hasNext());
+        Point point1 = iterator.next();
+        assertEquals(1.0, point1.x, 1e-10);
+        assertEquals(10.0, point1.y, 1e-10);
+
+        assertTrue(iterator.hasNext());
+        Point point2 = iterator.next();
+        assertEquals(2.0, point2.x, 1e-10);
+        assertEquals(20.0, point2.y, 1e-10);
+
+        assertFalse(iterator.hasNext());
+        assertThrows(NoSuchElementException.class, () -> iterator.next());
+    }
+
+    @Test
+    void testMultipleIteratorsIndependent() {
+        double[] xValues = {1.0, 2.0, 3.0};
+        double[] yValues = {10.0, 20.0, 30.0};
+        LinkedListTabulatedFunction func = new LinkedListTabulatedFunction(xValues, yValues);
+
+        Iterator<Point> iterator1 = func.iterator();
+        Iterator<Point> iterator2 = func.iterator();
+
+        Point point1 = iterator1.next();
+        assertEquals(1.0, point1.x, 1e-10);
+
+        Point point2 = iterator2.next();
+        assertEquals(1.0, point2.x, 1e-10);
+
+        point1 = iterator1.next();
+        assertEquals(2.0, point1.x, 1e-10);
+
+        point2 = iterator2.next();
+        assertEquals(2.0, point2.x, 1e-10);
     }
 }
