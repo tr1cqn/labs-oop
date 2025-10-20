@@ -2,16 +2,28 @@ package functions;
 
 import java.util.Iterator;
 import java.util.Arrays;
+// ДОБАВЛЯЕМ ИМПОРТЫ ДЛЯ ИСКЛЮЧЕНИЙ
+import exceptions.ArrayIsNotSortedException;
+import exceptions.DifferentLengthOfArraysException;
 
 public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable {
     private double[] xValues;
     private double[] yValues;
 
+    // ОБНОВЛЯЕМ КОНСТРУКТОР
     public ArrayTabulatedFunction(double[] xValues, double[] yValues) {
-        if (xValues.length != yValues.length || xValues.length < 2) {
-            throw new IllegalArgumentException("Массивы должны быть одинаковой длины и содержать минимум 2 точки");
+        // ПРОВЕРКА 1: Длина должна быть ≥ 2 точек
+        if (xValues.length < 2) {
+            throw new IllegalArgumentException("Длина таблицы должна быть не менее 2 точек");
         }
-        
+
+        // ПРОВЕРКА 2: Одинаковая длина массивов
+        checkLengthIsTheSame(xValues, yValues);
+
+        // ПРОВЕРКА 3: Отсортированность массива X
+        checkSorted(xValues);
+
+        // Остальной код без изменений
         this.count = xValues.length;
         this.xValues = Arrays.copyOf(xValues, count);
         this.yValues = Arrays.copyOf(yValues, count);
@@ -182,4 +194,3 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements
         count--;
     }
 }
-
