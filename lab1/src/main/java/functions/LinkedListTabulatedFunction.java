@@ -3,6 +3,9 @@ package functions;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
+import exceptions.ArrayIsNotSortedException;
+import exceptions.DifferentLengthOfArraysException;
+
 public class LinkedListTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable {
     // Вспомогательный класс узла списка
     private static class Node {
@@ -16,21 +19,18 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
 
     // Конструктор 1 из массивов
     public LinkedListTabulatedFunction(double[] xValues, double[] yValues) {
+        // ПРОВЕРКА 1: Длина должна быть ≥ 2 точек
         if (xValues.length < 2) {
-            throw new IllegalArgumentException("Минимум 2 точки требуется");
-        }
-        if (xValues.length != yValues.length) {
-            throw new IllegalArgumentException("Массивы должны быть одинаковой длины");
+            throw new IllegalArgumentException("Длина таблицы должна быть не менее 2 точек");
         }
 
-        // Проверяем упорядоченность xValues
-        for (int i = 1; i < xValues.length; i++) {
-            if (xValues[i] <= xValues[i - 1]) {
-                throw new IllegalArgumentException("Значения x должны быть строго возрастающими");
-            }
-        }
+        // ПРОВЕРКА 2: Одинаковая длина массивов
+        checkLengthIsTheSame(xValues, yValues);
 
-        //  count через добавление узлов
+        // ПРОВЕРКА 3: Отсортированность массива X
+        checkSorted(xValues);
+
+        // Остальной код без изменений
         this.count = 0;
 
         // Добавляем узлы через цикл
