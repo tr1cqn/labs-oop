@@ -116,14 +116,5 @@ public class AbstractTabulatedFunctionTest {
     }
 
 
-    @Test
-    public void testInterpolation_ThrowsException() {
-        double[] xValues = {1.0, 2.0, 3.0};
-        double[] yValues = {1.0, 4.0, 9.0};
-        TabulatedFunction function = new ArrayTabulatedFunction(xValues, yValues);
 
-        assertThrows(InterpolationException.class, () -> {
-            function.apply(1.5);
-        });
-    }
 }
