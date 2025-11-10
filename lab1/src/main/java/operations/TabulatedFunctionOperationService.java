@@ -85,4 +85,18 @@ public class TabulatedFunctionOperationService {
     public TabulatedFunction subtract(TabulatedFunction a, TabulatedFunction b) {
         return doOperation(a, b, (u, v) -> u - v);
     }
+    // МЕТОДЫ УМНОЖЕНИЯ И ДЕЛЕНИЯ
+    public TabulatedFunction multiply(TabulatedFunction a, TabulatedFunction b) {
+        return doOperation(a, b, (u, v) -> u * v);
+    }
+
+    public TabulatedFunction divide(TabulatedFunction a, TabulatedFunction b) {
+        return doOperation(a, b, (u, v) -> {
+            if (Math.abs(v) < 1e-12) {
+                throw new ArithmeticException("Деление на ноль");
+            }
+            return u / v;
+        });
+    }
+
 }
