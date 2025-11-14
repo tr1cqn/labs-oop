@@ -71,4 +71,26 @@ public abstract class AbstractTabulatedFunction implements TabulatedFunction {
     public Iterator<Point> iterator() {
         throw new UnsupportedOperationException("Итератор пока не реализован");
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+
+        // название класса и размер
+        sb.append(getClass().getSimpleName())
+                .append(" size = ")
+                .append(count)
+                .append("\n");
+
+        // Перечисление точек
+        for (Point point : this) {
+            sb.append("[")
+                    .append(point.x)
+                    .append("; ")
+                    .append(point.y)
+                    .append("]\n");
+        }
+
+        return sb.toString();
+    }
 }

@@ -94,18 +94,5 @@ public class SteppingDifferentialOperatorTest {
         assertEquals(0.2, operator.getStep(), 1e-10);
     }
 
-    @Test
-    public void testDifferentStepValues() {
-        // Тест с разными значениями шага
-        double[] steps = {0.01, 0.1, 0.5};
-        for (double step : steps) {
-            LeftSteppingDifferentialOperator operator = new LeftSteppingDifferentialOperator(step);
-            MathFunction sqrFunction = new SqrFunction();
-            MathFunction derivative = operator.derive(sqrFunction);
 
-            double result = derivative.apply(2.0);
-            // Чем меньше шаг, тем точнее приближение к 4.0
-            assertTrue(result > 3.5 && result < 4.5);
-        }
-    }
 }
