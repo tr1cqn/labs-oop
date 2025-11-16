@@ -10,6 +10,7 @@ public final class FunctionsIO {
     private FunctionsIO() {
         throw new UnsupportedOperationException("Нельзя создавать экземпляры утилитного класса FunctionsIO");
     }
+
     public static void writeTabulatedFunction(BufferedOutputStream outputStream, TabulatedFunction function)
             throws IOException {
 
@@ -46,4 +47,17 @@ public final class FunctionsIO {
         return factory.create(xValues, yValues);
     }
 
+    public static void writeTabulatedFunction(BufferedWriter writer, TabulatedFunction function) throws IOException {
+        PrintWriter printWriter = new PrintWriter(writer);
+
+        // Записываем количество точек
+        printWriter.println(function.getCount());
+
+        // Записываем все точки (x, y) через пробел
+        for (Point point : function) {
+            printWriter.printf("%f %f\n", point.x, point.y);
+        }
+
+        printWriter.flush(); // Сбрасываем буфер, но не закрываем поток!
+    }
 }
