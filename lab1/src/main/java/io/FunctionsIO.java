@@ -4,6 +4,9 @@ import functions.TabulatedFunction;
 import functions.Point;
 import java.io.*;
 import functions.factory.TabulatedFunctionFactory;
+import java.text.NumberFormat;
+import java.text.ParseException;
+import java.util.Locale;
 
 public final class FunctionsIO {
 
@@ -59,5 +62,48 @@ public final class FunctionsIO {
         }
 
         printWriter.flush(); // Сбрасываем буфер, но не закрываем поток!
+    }
+
+    public static TabulatedFunction readTabulatedFunction(BufferedReader reader, TabulatedFunctionFactory factory)
+            throws IOException {
+        try {
+            // Читаем количество точек
+            String countLine = reader.readLine();
+            if (countLine == null) {
+                throw new IOException("Файл пуст");
+            }
+            int count = Integer.parseInt(countLine.trim());
+
+            double[] xValues = new double[count];
+            double[] yValues = new double[count];
+
+            // Создаем форматтер для чисел с запятой
+            NumberFormat formatter = NumberFormat.getInstance(Locale.forLanguageTag("ru"));
+
+            // Читаем точки
+            for (int i = 0; i < count; i++) {
+                String line = reader.readLine();
+                if (line == null) {
+                    throw new IOException("Неожиданный конец файла");
+                }
+
+                String[] parts = line.split(" ");
+                if (parts.length != 2) {
+                    throw new IOException("Некорректный формат строки: " + line);
+                }
+
+                try {
+                    xValues[i] = formatter.parse(parts[0]).doubleValue();
+                    yValues[i] = formatter.parse(parts[1]).doubleValue();
+                } catch (ParseException e) {
+                    throw new IOException("Ошибка парсинга числа", e);
+                }
+            }
+
+            return factory.create(xValues, yValues);
+
+        } catch (NumberFormatException e) {
+            throw new IOException("Некорректный формат числа", e);
+        }
     }
 }
