@@ -106,4 +106,10 @@ public final class FunctionsIO {
             throw new IOException("Некорректный формат числа", e);
         }
     }
+
+    public static void serialize(BufferedOutputStream stream, TabulatedFunction function) throws IOException {
+        ObjectOutputStream oos = new ObjectOutputStream(stream);
+        oos.writeObject(function);
+        oos.flush(); // Сбрасываем буфер, но не закрываем поток!
+    }
 }
