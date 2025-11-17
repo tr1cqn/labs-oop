@@ -2,13 +2,17 @@ package functions;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.io.Serializable;
 
 import exceptions.ArrayIsNotSortedException;
 import exceptions.DifferentLengthOfArraysException;
 
-public class LinkedListTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable {
-    // Вспомогательный класс узла списка
-    private static class Node {
+public class LinkedListTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable, Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    private static class Node implements Serializable {
+        private static final long serialVersionUID = 1L;
         public double x;
         public double y;
         public Node next;
@@ -17,20 +21,16 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
 
     private Node head;
 
-    // Конструктор 1 из массивов
+
     public LinkedListTabulatedFunction(double[] xValues, double[] yValues) {
-        // ПРОВЕРКА 1: Длина должна быть ≥ 2 точек
+        //  Длина должна быть ≥ 2 точек
         if (xValues.length < 2) {
             throw new IllegalArgumentException("Длина таблицы должна быть не менее 2 точек");
         }
 
-        // ПРОВЕРКА 2: Одинаковая длина массивов
+        //  Одинаковая длина массивов
         checkLengthIsTheSame(xValues, yValues);
-
-        // ПРОВЕРКА 3: Отсортированность массива X
         checkSorted(xValues);
-
-        // Остальной код без изменений
         this.count = 0;
 
         // Добавляем узлы через цикл
@@ -61,7 +61,6 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
                 addNode(xFrom, y);
             }
         } else {
-            // Равномерная дискретизация
             double step = (xTo - xFrom) / (count - 1);
             for (int i = 0; i < count; i++) {
                 double x = xFrom + i * step;
@@ -237,20 +236,14 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
         if (index < 0 || index >= count) {
             throw new IndexOutOfBoundsException("Индекс: " + index + ", Размер: " + count);
         }
-        // Метод getNode(index) находит узел по индексу в списке
         Node toRemove = getNode(index);
 
         if (count == 1) {
-            // Просто обнуляем голову списка список становится пустым
             head = null;
         } else {
-            //  У узла toRemove.prev устанавливаем next на toRemove.next
+
             toRemove.prev.next = toRemove.next;
-
-            // узла toRemove.next устанавливаем prev на toRemove.prev
             toRemove.next.prev = toRemove.prev;
-
-            // Проверяем, не является ли удаляемый узел головой списка
             if (toRemove == head) {
                 // Если удаляем голову, то новая голова - следующий узел
                 head = head.next;
@@ -258,22 +251,18 @@ public class LinkedListTabulatedFunction extends AbstractTabulatedFunction imple
         }
         count--;
     }
-        // Реализация метода insert из интерфейса Insertable
         @Override
         public void insert(double x, double y) {
-            // Если список пустой
             if (head == null) {
                 addNode(x, y);
                 return;
             }
 
-            // Ищем узел с таким x или место для вставки
             Node current = head;
             boolean found = false;
             int iterations = 0;
 
             do {
-                // Если нашли существующий x - заменяем y
                 if (Math.abs(current.x - x) < 1e-10) {
                     current.y = y;
                     return;
