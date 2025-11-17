@@ -6,10 +6,17 @@ import java.util.NoSuchElementException;
 // ДОБАВЛЯЕМ ИМПОРТЫ ДЛЯ ИСКЛЮЧЕНИЙ
 import exceptions.ArrayIsNotSortedException;
 import exceptions.DifferentLengthOfArraysException;
+// ДОБАВЛЯЕМ ИМПОРТЫ ДЛЯ СЕРИАЛИЗАЦИИ
+import java.io.*;
 
-public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable {
+public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable, Externalizable {
+    private static final long serialVersionUID = 1L;
     private double[] xValues;
     private double[] yValues;
+
+    // ОБЯЗАТЕЛЬНЫЙ пустой конструктор для Externalizable
+    public ArrayTabulatedFunction() {
+    }
 
     // ОБНОВЛЯЕМ КОНСТРУКТОР
     public ArrayTabulatedFunction(double[] xValues, double[] yValues) {
@@ -34,17 +41,17 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements
         if (count < 2) {
             throw new IllegalArgumentException("Количество точек должно быть не меньше 2");
         }
-        
+
         this.count = count;
         this.xValues = new double[count];
         this.yValues = new double[count];
-        
+
         if (xFrom > xTo) {
             double temp = xFrom;
             xFrom = xTo;
             xTo = temp;
         }
-        
+
         if (xFrom == xTo) {
             Arrays.fill(xValues, xFrom);
             Arrays.fill(yValues, source.apply(xFrom));
@@ -57,6 +64,34 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements
         }
     }
 
+    // МЕТОДЫ EXTERNALIZABLE
+    @Override
+    public void writeExternal(ObjectOutput out) throws IOException {
+        out.writeInt(count); // записываем количество точек
+
+        // записываем массивы
+        for (int i = 0; i < count; i++) {
+            out.writeDouble(xValues[i]);
+            out.writeDouble(yValues[i]);
+        }
+    }
+
+    @Override
+    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+        count = in.readInt(); // читаем количество точек
+
+        // создаем массивы
+        xValues = new double[count];
+        yValues = new double[count];
+
+        // читаем данные в массивы
+        for (int i = 0; i < count; i++) {
+            xValues[i] = in.readDouble();
+            yValues[i] = in.readDouble();
+        }
+    }
+
+    // ВСЕ ОСТАЛЬНЫЕ МЕТОДЫ БЕЗ ИЗМЕНЕНИЙ
     @Override
     public Iterator<Point> iterator() {
         return new Iterator<Point>() {
@@ -158,6 +193,7 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements
     protected double interpolate(double x, int floorIndex) {
         return interpolate(x, xValues[floorIndex], xValues[floorIndex + 1], yValues[floorIndex], yValues[floorIndex + 1]);
     }
+
     public void insert(double x, double y) {
         // Проверяем есть ли уже такое x в массиве
         int existingIndex = indexOfX(x);
@@ -187,7 +223,7 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements
         yValues = newYValues;
         count++;
     }
-        // Реализация метода remove из интерфейса Removable
+
     @Override
     public void remove(int index) {
         if (index < 0 || index >= count) {
