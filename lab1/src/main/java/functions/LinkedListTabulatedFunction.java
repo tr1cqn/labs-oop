@@ -9,7 +9,8 @@ import exceptions.DifferentLengthOfArraysException;
 
 public class LinkedListTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable, Serializable {
 
-    private static final long serialVersionUID = 1L;
+
+    private static final long serialVersionUID = 337603668939094478L;
 
     private static class Node implements Serializable {
         private static final long serialVersionUID = 1L;
