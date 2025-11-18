@@ -50,6 +50,8 @@ public final class FunctionsIO {
         return factory.create(xValues, yValues);
     }
 
+
+
     public static void writeTabulatedFunction(BufferedWriter writer, TabulatedFunction function) throws IOException {
         PrintWriter printWriter = new PrintWriter(writer);
 
@@ -111,5 +113,12 @@ public final class FunctionsIO {
         ObjectOutputStream oos = new ObjectOutputStream(stream);
         oos.writeObject(function);
         oos.flush(); // Сбрасываем буфер, но не закрываем поток!
+    }
+    // метод десериализации
+    public static TabulatedFunction deserialize(BufferedInputStream stream)
+            throws IOException, ClassNotFoundException {
+
+        ObjectInputStream objectInputStream = new ObjectInputStream(stream);
+        return (TabulatedFunction) objectInputStream.readObject();
     }
 }
