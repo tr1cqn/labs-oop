@@ -3,35 +3,24 @@ package functions;
 import java.util.Iterator;
 import java.util.Arrays;
 import java.util.NoSuchElementException;
-// ДОБАВЛЯЕМ ИМПОРТЫ ДЛЯ ИСКЛЮЧЕНИЙ
+import java.io.Serializable;
 import exceptions.ArrayIsNotSortedException;
 import exceptions.DifferentLengthOfArraysException;
-// ДОБАВЛЯЕМ ИМПОРТЫ ДЛЯ СЕРИАЛИЗАЦИИ
-import java.io.*;
 
-public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable, Externalizable {
-    private static final long serialVersionUID = 1L;
+public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements Insertable, Removable, Serializable {
+
+    private static final long serialVersionUID = 1280439451709571797L;
     private double[] xValues;
     private double[] yValues;
 
-    // ОБЯЗАТЕЛЬНЫЙ пустой конструктор для Externalizable
-    public ArrayTabulatedFunction() {
-    }
-
-    // ОБНОВЛЯЕМ КОНСТРУКТОР
     public ArrayTabulatedFunction(double[] xValues, double[] yValues) {
-        // ПРОВЕРКА 1: Длина должна быть ≥ 2 точек
         if (xValues.length < 2) {
             throw new IllegalArgumentException("Длина таблицы должна быть не менее 2 точек");
         }
 
-        // ПРОВЕРКА 2: Одинаковая длина массивов
         checkLengthIsTheSame(xValues, yValues);
-
-        // ПРОВЕРКА 3: Отсортированность массива X
         checkSorted(xValues);
 
-        // Остальной код без изменений
         this.count = xValues.length;
         this.xValues = Arrays.copyOf(xValues, count);
         this.yValues = Arrays.copyOf(yValues, count);
@@ -64,34 +53,6 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements
         }
     }
 
-    // МЕТОДЫ EXTERNALIZABLE
-    @Override
-    public void writeExternal(ObjectOutput out) throws IOException {
-        out.writeInt(count); // записываем количество точек
-
-        // записываем массивы
-        for (int i = 0; i < count; i++) {
-            out.writeDouble(xValues[i]);
-            out.writeDouble(yValues[i]);
-        }
-    }
-
-    @Override
-    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        count = in.readInt(); // читаем количество точек
-
-        // создаем массивы
-        xValues = new double[count];
-        yValues = new double[count];
-
-        // читаем данные в массивы
-        for (int i = 0; i < count; i++) {
-            xValues[i] = in.readDouble();
-            yValues[i] = in.readDouble();
-        }
-    }
-
-    // ВСЕ ОСТАЛЬНЫЕ МЕТОДЫ БЕЗ ИЗМЕНЕНИЙ
     @Override
     public Iterator<Point> iterator() {
         return new Iterator<Point>() {
@@ -195,14 +156,12 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements
     }
 
     public void insert(double x, double y) {
-        // Проверяем есть ли уже такое x в массиве
         int existingIndex = indexOfX(x);
         if (existingIndex != -1) {
-            // Если x уже существует заменяем значение y
             yValues[existingIndex] = y;
             return;
         }
-        // Если x не найден - нужно добавить новую точку
+
         double[] newXValues = new double[count + 1];
         double[] newYValues = new double[count + 1];
         int insertIndex = 0;
@@ -230,19 +189,15 @@ public class ArrayTabulatedFunction extends AbstractTabulatedFunction implements
             throw new IndexOutOfBoundsException("Индекс: " + index + ", Размер: " + count);
         }
 
-        // Создаем новые массивы на 1 элемент меньше
         double[] newXValues = new double[count - 1];
         double[] newYValues = new double[count - 1];
 
-        // Копируем элементы до удаляемого индекса
         System.arraycopy(xValues, 0, newXValues, 0, index);
         System.arraycopy(yValues, 0, newYValues, 0, index);
 
-        // Копируем элементы после удаляемого индекса
         System.arraycopy(xValues, index + 1, newXValues, index, count - index - 1);
         System.arraycopy(yValues, index + 1, newYValues, index, count - index - 1);
 
-        // Заменяем старые массивы новыми
         xValues = newXValues;
         yValues = newYValues;
         count--;
