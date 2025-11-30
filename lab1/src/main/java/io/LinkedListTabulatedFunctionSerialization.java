@@ -9,9 +9,11 @@ public class LinkedListTabulatedFunctionSerialization {
 
     public static void main(String[] args) {
 
+
+
         // Создаем исходную функцию типа LinkedListTabulatedFunction
         double[] xValues = {0.0, 1.0, 2.0, 3.0, 4.0};
-        double[] yValues = {0.0, 1.0, 4.0, 9.0, 16.0}; // f(x) = x²
+        double[] yValues = {1.0, 3.0, 5.0, 7.0, 9.0};
 
         LinkedListTabulatedFunction originalFunction = new LinkedListTabulatedFunction(xValues, yValues);
 
