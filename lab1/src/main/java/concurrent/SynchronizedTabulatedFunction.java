@@ -3,6 +3,8 @@ package concurrent;
 import functions.TabulatedFunction;
 import functions.Point;
 import java.util.Iterator;
+import operations.TabulatedFunctionOperationService;
+import java.util.NoSuchElementException;
 
 public class SynchronizedTabulatedFunction implements TabulatedFunction {
     private final TabulatedFunction function;
@@ -58,6 +60,25 @@ public class SynchronizedTabulatedFunction implements TabulatedFunction {
 
     @Override
     public synchronized Iterator<Point> iterator() {
-        return function.iterator();
+        // В блоке синхронизации создаем копию данных
+        Point[] pointsCopy = TabulatedFunctionOperationService.asPoints(function);
+
+        // Возвращаем анонимный итератор, работающий с копией
+        return new Iterator<Point>() {
+            private int currentIndex = 0;
+
+            @Override
+            public boolean hasNext() {
+                return currentIndex < pointsCopy.length;
+            }
+
+            @Override
+            public Point next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException("No more elements in iterator");
+                }
+                return pointsCopy[currentIndex++];
+            }
+        };
     }
 }
