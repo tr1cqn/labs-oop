@@ -2,8 +2,8 @@ package operations;
 
 import functions.*;
 import functions.factory.*;
+import concurrent.SynchronizedTabulatedFunction;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TabulatedDifferentialOperatorTest {
@@ -184,5 +184,19 @@ class TabulatedDifferentialOperatorTest {
         for (int i = 0; i < derivative.getCount(); i++) {
             assertEquals(xValues[i], derivative.getX(i), 1e-10);
         }
+    }
+
+    @Test
+    void testDeriveSynchronously() {
+        TabulatedDifferentialOperator operator = new TabulatedDifferentialOperator();
+
+        TabulatedFunction function = new ArrayTabulatedFunction(
+                new double[]{1, 2, 3},
+                new double[]{1, 4, 9}
+        );
+
+        TabulatedFunction derivative = operator.deriveSynchronously(function);
+
+        assertEquals(3, derivative.getCount());
     }
 }

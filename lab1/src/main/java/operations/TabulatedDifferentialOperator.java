@@ -3,6 +3,7 @@ package operations;
 import functions.*;
 import functions.factory.*;
 import operations.TabulatedFunctionOperationService;
+import concurrent.SynchronizedTabulatedFunction;
 
 public class TabulatedDifferentialOperator implements DifferentialOperator<TabulatedFunction> {
     private TabulatedFunctionFactory factory;
@@ -70,5 +71,15 @@ public class TabulatedDifferentialOperator implements DifferentialOperator<Tabul
 
         // Создаем новую табулированную функцию через фабрику
         return factory.create(xValues, yValues);
+    }
+    public TabulatedFunction deriveSynchronously(TabulatedFunction function) {
+        SynchronizedTabulatedFunction syncFunction;
+        if (function instanceof SynchronizedTabulatedFunction) {
+            syncFunction = (SynchronizedTabulatedFunction) function;
+        } else {
+            syncFunction = new SynchronizedTabulatedFunction(function);
+        }
+
+        return syncFunction.doSynchronously(f -> this.derive(f));
     }
 }
