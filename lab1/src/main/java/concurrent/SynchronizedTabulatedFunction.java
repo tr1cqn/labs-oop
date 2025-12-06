@@ -13,6 +13,10 @@ public class SynchronizedTabulatedFunction implements TabulatedFunction {
         this.function = function;
     }
 
+    public interface Operation<T> {
+        T apply(SynchronizedTabulatedFunction function);
+    }
+
     @Override
     public synchronized int getCount() {
         return function.getCount();
@@ -81,4 +85,8 @@ public class SynchronizedTabulatedFunction implements TabulatedFunction {
             }
         };
     }
+    public synchronized <T> T doSynchronously(Operation<? extends T> operation) {
+        return operation.apply(this);
+    }
+
 }
