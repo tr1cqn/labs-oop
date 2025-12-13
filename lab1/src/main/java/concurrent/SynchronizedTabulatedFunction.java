@@ -5,12 +5,17 @@ import functions.Point;
 import java.util.Iterator;
 import operations.TabulatedFunctionOperationService;
 import java.util.NoSuchElementException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class SynchronizedTabulatedFunction implements TabulatedFunction {
+    private static final Logger logger = LogManager.getLogger(SynchronizedTabulatedFunction.class);
     private final TabulatedFunction function;
 
     public SynchronizedTabulatedFunction(TabulatedFunction function) {
         this.function = function;
+        logger.debug("Создан SynchronizedTabulatedFunction для функции типа: {}, количество точек: {}", 
+            function.getClass().getSimpleName(), function.getCount());
     }
 
     public interface Operation<T> {
@@ -64,8 +69,10 @@ public class SynchronizedTabulatedFunction implements TabulatedFunction {
 
     @Override
     public synchronized Iterator<Point> iterator() {
+        logger.debug("Создание итератора для SynchronizedTabulatedFunction");
         // В блоке синхронизации создаем копию данных
         Point[] pointsCopy = TabulatedFunctionOperationService.asPoints(function);
+        logger.debug("Создана копия из {} точек для итератора", pointsCopy.length);
 
         // Возвращаем анонимный итератор, работающий с копией
         return new Iterator<Point>() {
@@ -79,6 +86,7 @@ public class SynchronizedTabulatedFunction implements TabulatedFunction {
             @Override
             public Point next() {
                 if (!hasNext()) {
+                    logger.warn("Попытка получить следующий элемент из итератора, когда элементов больше нет");
                     throw new NoSuchElementException("No more elements in iterator");
                 }
                 return pointsCopy[currentIndex++];
@@ -86,7 +94,10 @@ public class SynchronizedTabulatedFunction implements TabulatedFunction {
         };
     }
     public synchronized <T> T doSynchronously(Operation<? extends T> operation) {
-        return operation.apply(this);
+        logger.debug("Выполнение синхронной операции над SynchronizedTabulatedFunction");
+        T result = operation.apply(this);
+        logger.debug("Синхронная операция завершена");
+        return result;
     }
 
 }
