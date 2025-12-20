@@ -1,0 +1,6 @@
+CREATE TABLE computed_points (
+    id BIGSERIAL PRIMARY KEY,
+    function_id BIGINT NOT NULL REFERENCES functions(id),
+    x DOUBLE PRECISION NOT NULL,
+    y DOUBLE PRECISION NOT NULL
+);
