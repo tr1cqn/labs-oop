@@ -37,6 +37,12 @@
             <AppenderRef ref="FileAppender"/>
         </Logger>
         
+        <!-- Логгер для database операций -->
+        <Logger name="database" level="DEBUG" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="FileAppender"/>
+        </Logger>
+        
         <!-- Корневой логгер -->
         <Root level="INFO">
             <AppenderRef ref="Console"/>
