@@ -3,6 +3,7 @@ package repository.impl;
 import entity.Function;
 import entity.Result;
 import repository.ResultRepository;
+import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
@@ -12,6 +13,7 @@ import java.util.Optional;
 /**
  * Реализация репозитория для Result Entity
  */
+@Repository
 public class ResultRepositoryImpl implements ResultRepository {
     
     @Override

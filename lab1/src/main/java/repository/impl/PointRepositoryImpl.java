@@ -3,6 +3,7 @@ package repository.impl;
 import entity.Function;
 import entity.Point;
 import repository.PointRepository;
+import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
@@ -12,6 +13,7 @@ import java.util.Optional;
 /**
  * Реализация репозитория для Point Entity
  */
+@Repository
 public class PointRepositoryImpl implements PointRepository {
     
     @Override

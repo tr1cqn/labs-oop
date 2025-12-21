@@ -2,6 +2,7 @@ package repository.impl;
 
 import entity.User;
 import repository.UserRepository;
+import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
@@ -11,6 +12,7 @@ import java.util.Optional;
 /**
  * Реализация репозитория для User Entity
  */
+@Repository
 public class UserRepositoryImpl implements UserRepository {
     
     @Override

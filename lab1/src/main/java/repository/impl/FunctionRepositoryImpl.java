@@ -3,6 +3,7 @@ package repository.impl;
 import entity.Function;
 import entity.User;
 import repository.FunctionRepository;
+import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
@@ -12,6 +13,7 @@ import java.util.Optional;
 /**
  * Реализация репозитория для Function Entity
  */
+@Repository
 public class FunctionRepositoryImpl implements FunctionRepository {
     
     @Override
