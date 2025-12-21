@@ -53,6 +53,12 @@
             <artifactId>hibernate-entitymanager</artifactId>
             <version>5.6.15.Final</version>
         </dependency>
+        <!-- Добавлено H2 Database -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.2.224</version>
+        </dependency>
     </dependencies>
 
     <build>
