@@ -1,18 +1,15 @@
 package servlet;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import database.dao.FunctionDAO;
 import database.dto.FunctionDTO;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,44 +19,49 @@ import java.util.Map;
  * Реализует CRUD операции согласно API контракту
  */
 @WebServlet("/api/v1/functions/*")
-public class FunctionServlet extends HttpServlet {
-    private static final Logger logger = LogManager.getLogger(FunctionServlet.class);
-    private final ObjectMapper objectMapper = new ObjectMapper();
+public class FunctionServlet extends AbstractApiServlet {
     private final FunctionDAO functionDAO = new FunctionDAO();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("GET {} pathInfo={} params={}", req.getRequestURI(), req.getPathInfo(), req.getQueryString());
 
         try {
-            String pathInfo = req.getPathInfo();
-            
-            // GET /api/v1/functions/{id}
-            if (pathInfo != null && pathInfo.matches("/\\d+")) {
-                Long id = Long.parseLong(pathInfo.substring(1));
-                handleGetById(id, resp);
-            }
-            // GET /api/v1/functions/user/{userId}
-            else if (pathInfo != null && pathInfo.startsWith("/user/")) {
-                Long userId = Long.parseLong(pathInfo.substring(6));
-                handleGetByUserId(userId, resp);
-            }
-            // GET /api/v1/functions/search?type=... или ?name=... или ?nameLike=...
-            else if (req.getParameter("type") != null && req.getParameter("userId") != null) {
-                Long userId = Long.parseLong(req.getParameter("userId"));
-                handleSearchByUserAndType(userId, req.getParameter("type"), resp);
-            } else if (req.getParameter("type") != null) {
-                handleSearchByType(req.getParameter("type"), resp);
-            } else if (req.getParameter("name") != null) {
-                handleSearchByName(req.getParameter("name"), resp);
-            } else if (req.getParameter("nameLike") != null) {
-                handleSearchByNameLike(req.getParameter("nameLike"), resp);
-            }
             // GET /api/v1/functions
-            else {
+            if (segments.isEmpty()) {
                 handleGetAll(req, resp);
+                return;
             }
+
+            // GET /api/v1/functions/search?... (контракт)
+            if ("search".equalsIgnoreCase(segments.get(0))) {
+                handleSearch(req, resp);
+                return;
+            }
+
+            // GET /api/v1/functions/{id}
+            if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
+                Long id = parseLongStrict(segments.get(0));
+                handleGetById(id, resp);
+                return;
+            }
+
+            // GET /api/v1/functions/user/{userId} | /user/{userId}/count
+            if (segments.size() >= 2 && "user".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+")) {
+                Long userId = parseLongStrict(segments.get(1));
+                if (segments.size() == 3 && "count".equalsIgnoreCase(segments.get(2))) {
+                    handleCountByUserId(userId, resp);
+                    return;
+                }
+                if (segments.size() == 2) {
+                    handleGetByUserId(userId, req, resp);
+                    return;
+                }
+            }
+
+            sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Маршрут не найден");
         } catch (Exception e) {
             logger.error("Ошибка при обработке GET запроса", e);
             sendError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", e.getMessage());
@@ -68,54 +70,141 @@ public class FunctionServlet extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("POST {} pathInfo={}", req.getRequestURI(), req.getPathInfo());
 
         try {
+            if (!segments.isEmpty()) {
+                sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Маршрут не найден");
+                return;
+            }
             FunctionDTO functionDTO = objectMapper.readValue(req.getReader(), FunctionDTO.class);
             handleCreate(functionDTO, resp);
         } catch (Exception e) {
             logger.error("Ошибка при обработке POST запроса", e);
-            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", e.getMessage());
+            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", e.getMessage());
         }
     }
 
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("PUT {} pathInfo={}", req.getRequestURI(), req.getPathInfo());
 
         try {
-            String pathInfo = req.getPathInfo();
-            if (pathInfo == null || !pathInfo.matches("/\\d+")) {
-                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", "ID обязателен");
+            if (segments.size() != 1 || !segments.get(0).matches("\\d+")) {
+                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "ID обязателен");
                 return;
             }
 
-            Long id = Long.parseLong(pathInfo.substring(1));
+            Long id = parseLongStrict(segments.get(0));
             FunctionDTO functionDTO = objectMapper.readValue(req.getReader(), FunctionDTO.class);
             handleUpdate(id, functionDTO, resp);
         } catch (Exception e) {
             logger.error("Ошибка при обработке PUT запроса", e);
-            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", e.getMessage());
+            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", e.getMessage());
+        }
+    }
+
+    @Override
+    protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("PATCH {} pathInfo={} params={}", req.getRequestURI(), req.getPathInfo(), req.getQueryString());
+
+        try {
+            // PATCH /api/v1/functions/{id}/name | /type
+            if (segments.size() == 2 && segments.get(0).matches("\\d+")) {
+                Long id = parseLongStrict(segments.get(0));
+                String field = segments.get(1);
+                Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
+
+                if ("name".equalsIgnoreCase(field)) {
+                    Object name = body.get("name");
+                    if (!(name instanceof String) || ((String) name).isBlank()) {
+                        sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "name обязателен");
+                        return;
+                    }
+                    boolean updated = functionDAO.updateName(id, (String) name);
+                    if (!updated) {
+                        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "FUNCTION_NOT_FOUND", "Функция не найдена");
+                        return;
+                    }
+                    sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("id", id, "name", name), "Имя функции обновлено");
+                    return;
+                }
+
+                if ("type".equalsIgnoreCase(field)) {
+                    Object type = body.get("type");
+                    if (!(type instanceof String) || ((String) type).isBlank()) {
+                        sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "type обязателен");
+                        return;
+                    }
+                    boolean updated = functionDAO.updateType(id, (String) type);
+                    if (!updated) {
+                        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "FUNCTION_NOT_FOUND", "Функция не найдена");
+                        return;
+                    }
+                    sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("id", id, "type", type), "Тип функции обновлен");
+                    return;
+                }
+            }
+
+            // PATCH /api/v1/functions/user/{userId}/type
+            if (segments.size() == 3 && "user".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+") && "type".equalsIgnoreCase(segments.get(2))) {
+                Long userId = parseLongStrict(segments.get(1));
+                Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
+                Object type = body.get("type");
+                if (!(type instanceof String) || ((String) type).isBlank()) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "type обязателен");
+                    return;
+                }
+                int updated = functionDAO.updateAllByUserId(userId, (String) type);
+                Map<String, Object> data = new HashMap<>();
+                data.put("updated", updated);
+                sendSuccess(resp, HttpServletResponse.SC_OK, data, "Обновлено функций: " + updated);
+                return;
+            }
+
+            sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Маршрут не найден");
+        } catch (Exception e) {
+            logger.error("Ошибка при обработке PATCH запроса", e);
+            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", e.getMessage());
         }
     }
 
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("DELETE {} pathInfo={} params={}", req.getRequestURI(), req.getPathInfo(), req.getQueryString());
 
         try {
-            String pathInfo = req.getPathInfo();
-            
             // DELETE /api/v1/functions/{id}
-            if (pathInfo != null && pathInfo.matches("/\\d+")) {
-                Long id = Long.parseLong(pathInfo.substring(1));
+            if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
+                Long id = parseLongStrict(segments.get(0));
                 handleDeleteById(id, resp);
-            } else {
-                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", "ID обязателен");
+                return;
             }
+
+            // DELETE /api/v1/functions/user/{userId}
+            if (segments.size() == 2 && "user".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+")) {
+                Long userId = parseLongStrict(segments.get(1));
+                int deleted = functionDAO.deleteByUserId(userId);
+                sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("deleted", deleted), "Удалено функций: " + deleted);
+                return;
+            }
+
+            // DELETE /api/v1/functions?type=...
+            if (segments.isEmpty() && req.getParameter("type") != null) {
+                int deleted = functionDAO.deleteByType(req.getParameter("type"));
+                sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("deleted", deleted), "Удалено функций: " + deleted);
+                return;
+            }
+
+            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "ID, userId или type обязателен");
         } catch (Exception e) {
             logger.error("Ошибка при обработке DELETE запроса", e);
             sendError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", e.getMessage());
@@ -133,13 +222,38 @@ public class FunctionServlet extends HttpServlet {
             dtos.add(dto);
         }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("data", dtos);
-        response.put("total", dtos.size());
+        String sortBy = getStringParam(req, "sortBy");
+        String order = getStringParam(req, "order");
+        Integer limit = getIntParam(req, "limit");
+        Integer offset = getIntParam(req, "offset");
 
-        objectMapper.writeValue(resp.getWriter(), response);
-        resp.setStatus(HttpServletResponse.SC_OK);
+        if (sortBy != null) {
+            Comparator<FunctionDTO> comparator;
+            switch (sortBy) {
+                case "id":
+                    comparator = Comparator.comparing(FunctionDTO::getId, Comparator.nullsLast(Long::compareTo));
+                    break;
+                case "name":
+                    comparator = Comparator.comparing(FunctionDTO::getName, Comparator.nullsLast(String::compareToIgnoreCase));
+                    break;
+                case "type":
+                    comparator = Comparator.comparing(FunctionDTO::getType, Comparator.nullsLast(String::compareToIgnoreCase));
+                    break;
+                case "userId":
+                    comparator = Comparator.comparing(FunctionDTO::getUserId, Comparator.nullsLast(Long::compareTo));
+                    break;
+                default:
+                    comparator = null;
+            }
+            if (comparator != null) {
+                if ("desc".equalsIgnoreCase(order)) comparator = comparator.reversed();
+                dtos.sort(comparator);
+            }
+        }
+
+        int total = dtos.size();
+        List<FunctionDTO> page = applyLimitOffset(dtos, limit, offset);
+        sendSuccessList(resp, HttpServletResponse.SC_OK, page, total);
     }
 
     private void handleGetById(Long id, HttpServletResponse resp) throws IOException, SQLException {
@@ -162,7 +276,7 @@ public class FunctionServlet extends HttpServlet {
         }
     }
 
-    private void handleGetByUserId(Long userId, HttpServletResponse resp) throws IOException, SQLException {
+    private void handleGetByUserId(Long userId, HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
         logger.debug("Получение функций пользователя с ID: {}", userId);
         List<FunctionDAO.Function> functions = functionDAO.findByUserId(userId);
         List<FunctionDTO> dtos = new ArrayList<>();
@@ -173,13 +287,34 @@ public class FunctionServlet extends HttpServlet {
             dtos.add(dto);
         }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("data", dtos);
-        response.put("total", dtos.size());
+        String sortBy = getStringParam(req, "sortBy");
+        String order = getStringParam(req, "order");
+        Integer limit = getIntParam(req, "limit");
+        Integer offset = getIntParam(req, "offset");
 
-        objectMapper.writeValue(resp.getWriter(), response);
-        resp.setStatus(HttpServletResponse.SC_OK);
+        if (sortBy != null) {
+            Comparator<FunctionDTO> comparator;
+            switch (sortBy) {
+                case "id":
+                    comparator = Comparator.comparing(FunctionDTO::getId, Comparator.nullsLast(Long::compareTo));
+                    break;
+                case "name":
+                    comparator = Comparator.comparing(FunctionDTO::getName, Comparator.nullsLast(String::compareToIgnoreCase));
+                    break;
+                case "type":
+                    comparator = Comparator.comparing(FunctionDTO::getType, Comparator.nullsLast(String::compareToIgnoreCase));
+                    break;
+                default:
+                    comparator = null;
+            }
+            if (comparator != null) {
+                if ("desc".equalsIgnoreCase(order)) comparator = comparator.reversed();
+                dtos.sort(comparator);
+            }
+        }
+        int total = dtos.size();
+        List<FunctionDTO> page = applyLimitOffset(dtos, limit, offset);
+        sendSuccessList(resp, HttpServletResponse.SC_OK, page, total);
     }
 
     private void handleSearchByType(String type, HttpServletResponse resp) throws IOException, SQLException {
@@ -204,10 +339,10 @@ public class FunctionServlet extends HttpServlet {
 
     private void handleSearchByName(String name, HttpServletResponse resp) throws IOException, SQLException {
         logger.debug("Поиск функции по имени: {}", name);
-        var functionOpt = functionDAO.findByName(name);
-        
-        if (functionOpt.isPresent()) {
-            FunctionDAO.Function function = functionOpt.get();
+        List<FunctionDAO.Function> functions = functionDAO.findByName(name);
+
+        if (!functions.isEmpty()) {
+            FunctionDAO.Function function = functions.get(0);
             FunctionDTO dto = new FunctionDTO(function.getId(), function.getUserId(), 
                                              function.getName(), function.getType());
             
@@ -270,13 +405,7 @@ public class FunctionServlet extends HttpServlet {
         FunctionDTO createdDTO = new FunctionDTO(id, functionDTO.getUserId(), 
                                                 functionDTO.getName(), functionDTO.getType());
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("data", createdDTO);
-        response.put("message", "Функция успешно создана");
-
-        objectMapper.writeValue(resp.getWriter(), response);
-        resp.setStatus(HttpServletResponse.SC_CREATED);
+        sendSuccess(resp, HttpServletResponse.SC_CREATED, createdDTO, "Функция успешно создана");
     }
 
     private void handleUpdate(Long id, FunctionDTO functionDTO, HttpServletResponse resp) throws IOException, SQLException {
@@ -305,28 +434,42 @@ public class FunctionServlet extends HttpServlet {
         boolean deleted = functionDAO.deleteById(id);
         
         if (deleted) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Функция успешно удалена");
-
-            objectMapper.writeValue(resp.getWriter(), response);
-            resp.setStatus(HttpServletResponse.SC_OK);
+            sendSuccess(resp, HttpServletResponse.SC_OK, null, "Функция успешно удалена");
         } else {
             sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Функция не найдена");
         }
     }
 
-    private void sendError(HttpServletResponse resp, int status, String code, String message) throws IOException {
-        resp.setStatus(status);
-        Map<String, Object> errorResponse = new HashMap<>();
-        errorResponse.put("success", false);
-        
-        Map<String, String> error = new HashMap<>();
-        error.put("code", code);
-        error.put("message", message);
-        errorResponse.put("error", error);
+    private void handleCountByUserId(Long userId, HttpServletResponse resp) throws IOException, SQLException {
+        int count = functionDAO.countByUserId(userId);
+        sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("function_count", count), null);
+    }
 
-        objectMapper.writeValue(resp.getWriter(), errorResponse);
+    private void handleSearch(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+        // GET /api/v1/functions/search?type= | name= | nameLike= | userId=&type=
+        String type = req.getParameter("type");
+        String userId = req.getParameter("userId");
+        String name = req.getParameter("name");
+        String nameLike = req.getParameter("nameLike");
+
+        if (type != null && userId != null) {
+            handleSearchByUserAndType(parseLongStrict(userId), type, resp);
+            return;
+        }
+        if (type != null) {
+            handleSearchByType(type, resp);
+            return;
+        }
+        if (name != null) {
+            handleSearchByName(name, resp);
+            return;
+        }
+        if (nameLike != null) {
+            handleSearchByNameLike(nameLike, resp);
+            return;
+        }
+        sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR",
+                "Ожидается один из параметров: type, name, nameLike или (userId+type)");
     }
 }
 

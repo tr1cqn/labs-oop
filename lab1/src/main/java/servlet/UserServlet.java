@@ -1,19 +1,16 @@
 package servlet;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import database.dao.UserDAO;
 import database.dto.UserDTO;
 import database.mapper.UserMapper;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,36 +20,36 @@ import java.util.Map;
  * Реализует CRUD операции согласно API контракту
  */
 @WebServlet("/api/v1/users/*")
-public class UserServlet extends HttpServlet {
-    private static final Logger logger = LogManager.getLogger(UserServlet.class);
-    private final ObjectMapper objectMapper = new ObjectMapper();
+public class UserServlet extends AbstractApiServlet {
     private final UserDAO userDAO = new UserDAO();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("GET {} pathInfo={} params={}", req.getRequestURI(), req.getPathInfo(), req.getQueryString());
 
         try {
-            String pathInfo = req.getPathInfo();
-            
-            // GET /api/v1/users/{id}
-            if (pathInfo != null && pathInfo.matches("/\\d+")) {
-                Long id = Long.parseLong(pathInfo.substring(1));
-                handleGetById(id, resp);
-            }
-            // GET /api/v1/users/search?login=... или ?email=... или ?loginLike=...
-            else if (req.getParameter("login") != null) {
-                handleSearchByLogin(req.getParameter("login"), resp);
-            } else if (req.getParameter("email") != null) {
-                handleSearchByEmail(req.getParameter("email"), resp);
-            } else if (req.getParameter("loginLike") != null) {
-                handleSearchByLoginLike(req.getParameter("loginLike"), resp);
-            }
             // GET /api/v1/users
-            else {
+            if (segments.isEmpty()) {
                 handleGetAll(req, resp);
+                return;
             }
+
+            // GET /api/v1/users/search?... (контракт)
+            if ("search".equalsIgnoreCase(segments.get(0))) {
+                handleSearch(req, resp);
+                return;
+            }
+
+            // GET /api/v1/users/{id}
+            if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
+                Long id = parseLongStrict(segments.get(0));
+                handleGetById(id, resp);
+                return;
+            }
+
+            sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Маршрут не найден");
         } catch (Exception e) {
             logger.error("Ошибка при обработке GET запроса", e);
             sendError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", e.getMessage());
@@ -61,57 +58,138 @@ public class UserServlet extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("POST {} pathInfo={}", req.getRequestURI(), req.getPathInfo());
 
         try {
+            if (!segments.isEmpty()) {
+                sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Маршрут не найден");
+                return;
+            }
             UserDTO userDTO = objectMapper.readValue(req.getReader(), UserDTO.class);
+            if (!UserMapper.isValid(userDTO)) {
+                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "login и password обязательны");
+                return;
+            }
             handleCreate(userDTO, resp);
         } catch (Exception e) {
             logger.error("Ошибка при обработке POST запроса", e);
-            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", e.getMessage());
+            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", e.getMessage());
         }
     }
 
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("PUT {} pathInfo={}", req.getRequestURI(), req.getPathInfo());
 
         try {
-            String pathInfo = req.getPathInfo();
-            if (pathInfo == null || !pathInfo.matches("/\\d+")) {
-                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", "ID обязателен");
+            if (segments.size() != 1 || !segments.get(0).matches("\\d+")) {
+                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "ID обязателен");
                 return;
             }
 
-            Long id = Long.parseLong(pathInfo.substring(1));
+            Long id = parseLongStrict(segments.get(0));
             UserDTO userDTO = objectMapper.readValue(req.getReader(), UserDTO.class);
+            if (!UserMapper.isValid(userDTO)) {
+                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "login и password обязательны");
+                return;
+            }
             handleUpdate(id, userDTO, resp);
         } catch (Exception e) {
             logger.error("Ошибка при обработке PUT запроса", e);
-            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", e.getMessage());
+            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", e.getMessage());
+        }
+    }
+
+    @Override
+    protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("PATCH {} pathInfo={}", req.getRequestURI(), req.getPathInfo());
+
+        try {
+            // PATCH /api/v1/users/{id}/password|email|login
+            if (segments.size() != 2 || !segments.get(0).matches("\\d+")) {
+                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "Ожидается /users/{id}/{field}");
+                return;
+            }
+            Long id = parseLongStrict(segments.get(0));
+            String field = segments.get(1);
+
+            Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
+
+            if ("password".equalsIgnoreCase(field)) {
+                Object pass = body.get("password");
+                if (!(pass instanceof String) || ((String) pass).isBlank()) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "password обязателен");
+                    return;
+                }
+                boolean updated = userDAO.updatePassword(id, (String) pass);
+                if (!updated) {
+                    sendError(resp, HttpServletResponse.SC_NOT_FOUND, "USER_NOT_FOUND", "Пользователь не найден");
+                    return;
+                }
+                sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("id", id), "Пароль обновлен");
+                return;
+            }
+
+            if ("email".equalsIgnoreCase(field)) {
+                Object email = body.get("email");
+                if (!(email instanceof String) || ((String) email).isBlank()) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "email обязателен");
+                    return;
+                }
+                boolean updated = userDAO.updateEmail(id, (String) email);
+                if (!updated) {
+                    sendError(resp, HttpServletResponse.SC_NOT_FOUND, "USER_NOT_FOUND", "Пользователь не найден");
+                    return;
+                }
+                sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("id", id, "email", email), "Email обновлен");
+                return;
+            }
+
+            if ("login".equalsIgnoreCase(field)) {
+                Object login = body.get("login");
+                if (!(login instanceof String) || ((String) login).isBlank()) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "login обязателен");
+                    return;
+                }
+                boolean updated = userDAO.updateLogin(id, (String) login);
+                if (!updated) {
+                    sendError(resp, HttpServletResponse.SC_NOT_FOUND, "USER_NOT_FOUND", "Пользователь не найден");
+                    return;
+                }
+                sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("id", id, "login", login), "Login обновлен");
+                return;
+            }
+
+            sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Маршрут не найден");
+        } catch (Exception e) {
+            logger.error("Ошибка при обработке PATCH запроса", e);
+            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", e.getMessage());
         }
     }
 
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("DELETE {} pathInfo={} params={}", req.getRequestURI(), req.getPathInfo(), req.getQueryString());
 
         try {
-            String pathInfo = req.getPathInfo();
-            
             // DELETE /api/v1/users/{id}
-            if (pathInfo != null && pathInfo.matches("/\\d+")) {
-                Long id = Long.parseLong(pathInfo.substring(1));
+            if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
+                Long id = parseLongStrict(segments.get(0));
                 handleDeleteById(id, resp);
             }
             // DELETE /api/v1/users?login=...
-            else if (req.getParameter("login") != null) {
+            else if (segments.isEmpty() && req.getParameter("login") != null) {
                 handleDeleteByLogin(req.getParameter("login"), resp);
             } else {
-                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", "ID или login обязателен");
+                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "ID или login обязателен");
             }
         } catch (Exception e) {
             logger.error("Ошибка при обработке DELETE запроса", e);
@@ -130,13 +208,36 @@ public class UserServlet extends HttpServlet {
             dtos.add(dto);
         }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("data", dtos);
-        response.put("total", dtos.size());
+        // сортировка и пагинация (контракт)
+        String sortBy = getStringParam(req, "sortBy");
+        String order = getStringParam(req, "order");
+        Integer limit = getIntParam(req, "limit");
+        Integer offset = getIntParam(req, "offset");
 
-        objectMapper.writeValue(resp.getWriter(), response);
-        resp.setStatus(HttpServletResponse.SC_OK);
+        if (sortBy != null) {
+            Comparator<UserDTO> comparator;
+            switch (sortBy) {
+                case "id":
+                    comparator = Comparator.comparing(UserDTO::getId, Comparator.nullsLast(Long::compareTo));
+                    break;
+                case "login":
+                    comparator = Comparator.comparing(UserDTO::getLogin, Comparator.nullsLast(String::compareToIgnoreCase));
+                    break;
+                case "email":
+                    comparator = Comparator.comparing(UserDTO::getEmail, Comparator.nullsLast(String::compareToIgnoreCase));
+                    break;
+                default:
+                    comparator = null;
+            }
+            if (comparator != null) {
+                if ("desc".equalsIgnoreCase(order)) comparator = comparator.reversed();
+                dtos.sort(comparator);
+            }
+        }
+
+        int total = dtos.size();
+        List<UserDTO> page = applyLimitOffset(dtos, limit, offset);
+        sendSuccessList(resp, HttpServletResponse.SC_OK, page, total);
     }
 
     private void handleGetById(Long id, HttpServletResponse resp) throws IOException, SQLException {
@@ -156,6 +257,24 @@ public class UserServlet extends HttpServlet {
         } else {
             sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Пользователь не найден");
         }
+    }
+
+    private void handleSearch(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+        // GET /api/v1/users/search?login=... | email=... | loginLike=...
+        if (req.getParameter("login") != null) {
+            handleSearchByLogin(req.getParameter("login"), resp);
+            return;
+        }
+        if (req.getParameter("email") != null) {
+            handleSearchByEmail(req.getParameter("email"), resp);
+            return;
+        }
+        if (req.getParameter("loginLike") != null) {
+            handleSearchByLoginLike(req.getParameter("loginLike"), resp);
+            return;
+        }
+        sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR",
+                "Ожидается один из параметров: login, email, loginLike");
     }
 
     private void handleSearchByLogin(String login, HttpServletResponse resp) throws IOException, SQLException {
@@ -226,14 +345,7 @@ public class UserServlet extends HttpServlet {
         }
 
         UserDTO createdDTO = new UserDTO(id, userDTO.getLogin(), null, userDTO.getEmail());
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("data", createdDTO);
-        response.put("message", "Пользователь успешно создан");
-
-        objectMapper.writeValue(resp.getWriter(), response);
-        resp.setStatus(HttpServletResponse.SC_CREATED);
+        sendSuccess(resp, HttpServletResponse.SC_CREATED, createdDTO, "Пользователь успешно создан");
     }
 
     private void handleUpdate(Long id, UserDTO userDTO, HttpServletResponse resp) throws IOException, SQLException {
@@ -261,12 +373,7 @@ public class UserServlet extends HttpServlet {
         boolean deleted = userDAO.deleteById(id);
         
         if (deleted) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Пользователь успешно удален");
-
-            objectMapper.writeValue(resp.getWriter(), response);
-            resp.setStatus(HttpServletResponse.SC_OK);
+            sendSuccess(resp, HttpServletResponse.SC_OK, null, "Пользователь успешно удален");
         } else {
             sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Пользователь не найден");
         }
@@ -277,28 +384,10 @@ public class UserServlet extends HttpServlet {
         boolean deleted = userDAO.deleteByLogin(login);
         
         if (deleted) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Пользователь успешно удален");
-
-            objectMapper.writeValue(resp.getWriter(), response);
-            resp.setStatus(HttpServletResponse.SC_OK);
+            sendSuccess(resp, HttpServletResponse.SC_OK, null, "Пользователь успешно удален");
         } else {
             sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Пользователь не найден");
         }
-    }
-
-    private void sendError(HttpServletResponse resp, int status, String code, String message) throws IOException {
-        resp.setStatus(status);
-        Map<String, Object> errorResponse = new HashMap<>();
-        errorResponse.put("success", false);
-        
-        Map<String, String> error = new HashMap<>();
-        error.put("code", code);
-        error.put("message", message);
-        errorResponse.put("error", error);
-
-        objectMapper.writeValue(resp.getWriter(), errorResponse);
     }
 }
 

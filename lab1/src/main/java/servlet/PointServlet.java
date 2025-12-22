@@ -1,18 +1,16 @@
 package servlet;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import database.dao.PointDAO;
 import database.dto.PointDTO;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import database.mapper.PointMapper;
 
 import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,43 +20,92 @@ import java.util.Map;
  * Реализует CRUD операции согласно API контракту
  */
 @WebServlet("/api/v1/points/*")
-public class PointServlet extends HttpServlet {
-    private static final Logger logger = LogManager.getLogger(PointServlet.class);
-    private final ObjectMapper objectMapper = new ObjectMapper();
+public class PointServlet extends AbstractApiServlet {
     private final PointDAO pointDAO = new PointDAO();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("GET {} pathInfo={} params={}", req.getRequestURI(), req.getPathInfo(), req.getQueryString());
 
         try {
-            String pathInfo = req.getPathInfo();
-            
+            // GET /api/v1/points
+            if (segments.isEmpty()) {
+                handleGetAll(req, resp);
+                return;
+            }
+
             // GET /api/v1/points/{id}
-            if (pathInfo != null && pathInfo.matches("/\\d+")) {
-                Long id = Long.parseLong(pathInfo.substring(1));
-                handleGetById(id, resp);
+            if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
+                handleGetById(parseLongStrict(segments.get(0)), resp);
+                return;
             }
-            // GET /api/v1/points/function/{funcId}
-            else if (pathInfo != null && pathInfo.startsWith("/function/")) {
-                Long funcId = Long.parseLong(pathInfo.substring(10));
-                handleGetByFunctionId(funcId, resp);
-            }
-            // GET /api/v1/points/search?funcId=...&xValue=... или другие параметры
-            else if (req.getParameter("funcId") != null) {
-                Long funcId = Long.parseLong(req.getParameter("funcId"));
-                if (req.getParameter("xValue") != null) {
-                    Double xValue = Double.parseDouble(req.getParameter("xValue"));
+
+            // GET /api/v1/points/function/{funcId}/...
+            if (segments.size() >= 2 && "function".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+")) {
+                Long funcId = parseLongStrict(segments.get(1));
+
+                // /function/{funcId}
+                if (segments.size() == 2) {
+                    handleGetByFunctionId(funcId, req, resp);
+                    return;
+                }
+
+                // /function/{funcId}/count
+                if (segments.size() == 3 && "count".equalsIgnoreCase(segments.get(2))) {
+                    int count = pointDAO.countByFunctionId(funcId);
+                    sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("point_count", count), null);
+                    return;
+                }
+
+                // /function/{funcId}/bounds
+                if (segments.size() == 3 && "bounds".equalsIgnoreCase(segments.get(2))) {
+                    PointDAO.XRange range = pointDAO.findMinMaxXByFunctionId(funcId);
+                    sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("min_x", range.getMinX(), "max_x", range.getMaxX()), null);
+                    return;
+                }
+
+                // /function/{funcId}/x/{xValue}
+                if (segments.size() == 4 && "x".equalsIgnoreCase(segments.get(2))) {
+                    Double xValue = parseDoubleStrict(segments.get(3));
                     handleGetByFunctionAndX(funcId, xValue, resp);
-                } else {
-                    handleGetByFunctionId(funcId, resp);
+                    return;
+                }
+
+                // /function/{funcId}/range?xMin=&xMax=
+                if (segments.size() == 3 && "range".equalsIgnoreCase(segments.get(2))) {
+                    Double xMin = req.getParameter("xMin") == null ? null : Double.parseDouble(req.getParameter("xMin"));
+                    Double xMax = req.getParameter("xMax") == null ? null : Double.parseDouble(req.getParameter("xMax"));
+                    if (xMin == null || xMax == null) {
+                        sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "xMin и xMax обязательны");
+                        return;
+                    }
+                    handleGetByFunctionAndXRange(funcId, xMin, xMax, resp);
+                    return;
+                }
+
+                // /function/{funcId}/y/{yValue}
+                if (segments.size() == 4 && "y".equalsIgnoreCase(segments.get(2))) {
+                    Double yValue = parseDoubleStrict(segments.get(3));
+                    handleGetByFunctionAndY(funcId, yValue, resp);
+                    return;
+                }
+
+                // /function/{funcId}/yRange?yMin=&yMax=
+                if (segments.size() == 3 && "yRange".equalsIgnoreCase(segments.get(2))) {
+                    Double yMin = req.getParameter("yMin") == null ? null : Double.parseDouble(req.getParameter("yMin"));
+                    Double yMax = req.getParameter("yMax") == null ? null : Double.parseDouble(req.getParameter("yMax"));
+                    if (yMin == null || yMax == null) {
+                        sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "yMin и yMax обязательны");
+                        return;
+                    }
+                    handleGetByFunctionAndYRange(funcId, yMin, yMax, resp);
+                    return;
                 }
             }
-            // GET /api/v1/points
-            else {
-                handleGetAll(req, resp);
-            }
+
+            sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Маршрут не найден");
         } catch (Exception e) {
             logger.error("Ошибка при обработке GET запроса", e);
             sendError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", e.getMessage());
@@ -67,54 +114,207 @@ public class PointServlet extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("POST {} pathInfo={}", req.getRequestURI(), req.getPathInfo());
 
         try {
-            PointDTO pointDTO = objectMapper.readValue(req.getReader(), PointDTO.class);
-            handleCreate(pointDTO, resp);
+            // POST /api/v1/points
+            if (segments.isEmpty()) {
+                PointDTO pointDTO = objectMapper.readValue(req.getReader(), PointDTO.class);
+                if (!PointMapper.isValid(pointDTO)) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "funcId, xValue, yValue обязательны");
+                    return;
+                }
+                handleCreate(pointDTO, resp);
+                return;
+            }
+
+            // POST /api/v1/points/batch
+            if (segments.size() == 1 && "batch".equalsIgnoreCase(segments.get(0))) {
+                BatchPointsRequest body = readJson(req, BatchPointsRequest.class);
+                if (body == null || body.funcId == null || body.points == null || body.points.isEmpty()) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "funcId и points обязательны");
+                    return;
+                }
+
+                List<PointDTO> created = new ArrayList<>();
+                for (SimplePoint p : body.points) {
+                    if (p == null) continue;
+                    PointDTO dto = new PointDTO(null, body.funcId, p.xValue, p.yValue);
+                    if (!PointMapper.isValid(dto)) {
+                        sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "Некорректная точка в списке");
+                        return;
+                    }
+                    Long id = pointDAO.insert(body.funcId, p.xValue, p.yValue);
+                    created.add(new PointDTO(id, body.funcId, p.xValue, p.yValue));
+                }
+
+                Map<String, Object> data = new HashMap<>();
+                data.put("created", created.size());
+                data.put("points", created);
+                sendSuccess(resp, HttpServletResponse.SC_CREATED, data, "Создано точек: " + created.size());
+                return;
+            }
+
+            sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Маршрут не найден");
         } catch (Exception e) {
             logger.error("Ошибка при обработке POST запроса", e);
-            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", e.getMessage());
+            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", e.getMessage());
         }
     }
 
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("PUT {} pathInfo={}", req.getRequestURI(), req.getPathInfo());
 
         try {
-            String pathInfo = req.getPathInfo();
-            if (pathInfo == null || !pathInfo.matches("/\\d+")) {
-                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", "ID обязателен");
+            if (segments.size() != 1 || !segments.get(0).matches("\\d+")) {
+                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "ID обязателен");
                 return;
             }
 
-            Long id = Long.parseLong(pathInfo.substring(1));
+            Long id = parseLongStrict(segments.get(0));
             PointDTO pointDTO = objectMapper.readValue(req.getReader(), PointDTO.class);
             handleUpdate(id, pointDTO, resp);
         } catch (Exception e) {
             logger.error("Ошибка при обработке PUT запроса", e);
-            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", e.getMessage());
+            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", e.getMessage());
+        }
+    }
+
+    @Override
+    protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("PATCH {} pathInfo={} params={}", req.getRequestURI(), req.getPathInfo(), req.getQueryString());
+
+        try {
+            // PATCH /api/v1/points/{id}/y
+            if (segments.size() == 2 && segments.get(0).matches("\\d+") && "y".equalsIgnoreCase(segments.get(1))) {
+                Long id = parseLongStrict(segments.get(0));
+                Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
+                Object y = body.get("yValue");
+                if (!(y instanceof Number)) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "yValue обязателен");
+                    return;
+                }
+                double yValue = ((Number) y).doubleValue();
+                boolean updated = pointDAO.updateYById(id, yValue);
+                if (!updated) {
+                    sendError(resp, HttpServletResponse.SC_NOT_FOUND, "POINT_NOT_FOUND", "Точка не найдена");
+                    return;
+                }
+                sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("id", id, "yValue", yValue), "y_value обновлен");
+                return;
+            }
+
+            // PATCH /api/v1/points/function/{funcId}/x/{xValue}/y
+            if (segments.size() == 5
+                    && "function".equalsIgnoreCase(segments.get(0))
+                    && segments.get(1).matches("\\d+")
+                    && "x".equalsIgnoreCase(segments.get(2))
+                    && "y".equalsIgnoreCase(segments.get(4))) {
+                Long funcId = parseLongStrict(segments.get(1));
+                Double xValue = parseDoubleStrict(segments.get(3));
+                Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
+                Object y = body.get("yValue");
+                if (!(y instanceof Number)) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "yValue обязателен");
+                    return;
+                }
+                double yValue = ((Number) y).doubleValue();
+                boolean updated = pointDAO.updateYByFunctionAndX(funcId, xValue, yValue);
+                if (!updated) {
+                    sendError(resp, HttpServletResponse.SC_NOT_FOUND, "POINT_NOT_FOUND", "Точка не найдена");
+                    return;
+                }
+                sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("funcId", funcId, "xValue", xValue, "yValue", yValue), "y_value обновлен");
+                return;
+            }
+
+            // PATCH /api/v1/points/function/{funcId}/multiply?coefficient=...
+            if (segments.size() == 3
+                    && "function".equalsIgnoreCase(segments.get(0))
+                    && segments.get(1).matches("\\d+")
+                    && "multiply".equalsIgnoreCase(segments.get(2))) {
+                Long funcId = parseLongStrict(segments.get(1));
+                String coeff = req.getParameter("coefficient");
+                if (coeff == null) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "coefficient обязателен");
+                    return;
+                }
+                double multiplier = Double.parseDouble(coeff);
+                int updated = pointDAO.updateYMultiply(funcId, multiplier);
+                sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("updated", updated), "Обновлено точек: " + updated);
+                return;
+            }
+
+            sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Маршрут не найден");
+        } catch (Exception e) {
+            logger.error("Ошибка при обработке PATCH запроса", e);
+            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", e.getMessage());
         }
     }
 
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+        prepareJsonResponse(resp);
+        List<String> segments = pathSegments(req);
+        logger.info("DELETE {} pathInfo={} params={}", req.getRequestURI(), req.getPathInfo(), req.getQueryString());
 
         try {
-            String pathInfo = req.getPathInfo();
-            
             // DELETE /api/v1/points/{id}
-            if (pathInfo != null && pathInfo.matches("/\\d+")) {
-                Long id = Long.parseLong(pathInfo.substring(1));
+            if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
+                Long id = parseLongStrict(segments.get(0));
                 handleDeleteById(id, resp);
-            } else {
-                sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "BAD_REQUEST", "ID обязателен");
+                return;
             }
+
+            // DELETE /api/v1/points/function/{funcId}/x/{xValue}
+            if (segments.size() == 4
+                    && "function".equalsIgnoreCase(segments.get(0))
+                    && segments.get(1).matches("\\d+")
+                    && "x".equalsIgnoreCase(segments.get(2))) {
+                Long funcId = parseLongStrict(segments.get(1));
+                Double xValue = parseDoubleStrict(segments.get(3));
+                boolean deleted = pointDAO.deleteByFunctionAndX(funcId, xValue);
+                if (!deleted) {
+                    sendError(resp, HttpServletResponse.SC_NOT_FOUND, "POINT_NOT_FOUND", "Точка не найдена");
+                    return;
+                }
+                sendSuccess(resp, HttpServletResponse.SC_OK, null, "Точка успешно удалена");
+                return;
+            }
+
+            // DELETE /api/v1/points/function/{funcId}
+            if (segments.size() == 2 && "function".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+")) {
+                Long funcId = parseLongStrict(segments.get(1));
+                int deleted = pointDAO.deleteByFunctionId(funcId);
+                sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("deleted", deleted), "Удалено точек: " + deleted);
+                return;
+            }
+
+            // DELETE /api/v1/points/function/{funcId}/range?xMin=&xMax=
+            if (segments.size() == 3
+                    && "function".equalsIgnoreCase(segments.get(0))
+                    && segments.get(1).matches("\\d+")
+                    && "range".equalsIgnoreCase(segments.get(2))) {
+                Long funcId = parseLongStrict(segments.get(1));
+                Double xMin = req.getParameter("xMin") == null ? null : Double.parseDouble(req.getParameter("xMin"));
+                Double xMax = req.getParameter("xMax") == null ? null : Double.parseDouble(req.getParameter("xMax"));
+                if (xMin == null || xMax == null) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "xMin и xMax обязательны");
+                    return;
+                }
+                int deleted = pointDAO.deleteByFunctionAndXRange(funcId, xMin, xMax);
+                sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("deleted", deleted), "Удалено точек: " + deleted);
+                return;
+            }
+
+            sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "Неверный маршрут");
         } catch (Exception e) {
             logger.error("Ошибка при обработке DELETE запроса", e);
             sendError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", e.getMessage());
@@ -132,13 +332,38 @@ public class PointServlet extends HttpServlet {
             dtos.add(dto);
         }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("data", dtos);
-        response.put("total", dtos.size());
+        String sortBy = getStringParam(req, "sortBy");
+        String order = getStringParam(req, "order");
+        Integer limit = getIntParam(req, "limit");
+        Integer offset = getIntParam(req, "offset");
 
-        objectMapper.writeValue(resp.getWriter(), response);
-        resp.setStatus(HttpServletResponse.SC_OK);
+        if (sortBy != null) {
+            Comparator<PointDTO> comparator;
+            switch (sortBy) {
+                case "id":
+                    comparator = Comparator.comparing(PointDTO::getId, Comparator.nullsLast(Long::compareTo));
+                    break;
+                case "xValue":
+                    comparator = Comparator.comparing(PointDTO::getXValue, Comparator.nullsLast(Double::compareTo));
+                    break;
+                case "yValue":
+                    comparator = Comparator.comparing(PointDTO::getYValue, Comparator.nullsLast(Double::compareTo));
+                    break;
+                case "funcId":
+                    comparator = Comparator.comparing(PointDTO::getFuncId, Comparator.nullsLast(Long::compareTo));
+                    break;
+                default:
+                    comparator = null;
+            }
+            if (comparator != null) {
+                if ("desc".equalsIgnoreCase(order)) comparator = comparator.reversed();
+                dtos.sort(comparator);
+            }
+        }
+
+        int total = dtos.size();
+        List<PointDTO> page = applyLimitOffset(dtos, limit, offset);
+        sendSuccessList(resp, HttpServletResponse.SC_OK, page, total);
     }
 
     private void handleGetById(Long id, HttpServletResponse resp) throws IOException, SQLException {
@@ -161,7 +386,7 @@ public class PointServlet extends HttpServlet {
         }
     }
 
-    private void handleGetByFunctionId(Long funcId, HttpServletResponse resp) throws IOException, SQLException {
+    private void handleGetByFunctionId(Long funcId, HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
         logger.debug("Получение точек функции с ID: {}", funcId);
         List<PointDAO.Point> points = pointDAO.findByFunctionId(funcId);
         List<PointDTO> dtos = new ArrayList<>();
@@ -172,13 +397,31 @@ public class PointServlet extends HttpServlet {
             dtos.add(dto);
         }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("data", dtos);
-        response.put("total", dtos.size());
+        String sortBy = getStringParam(req, "sortBy");
+        String order = getStringParam(req, "order");
 
-        objectMapper.writeValue(resp.getWriter(), response);
-        resp.setStatus(HttpServletResponse.SC_OK);
+        if (sortBy != null) {
+            Comparator<PointDTO> comparator;
+            switch (sortBy) {
+                case "id":
+                    comparator = Comparator.comparing(PointDTO::getId, Comparator.nullsLast(Long::compareTo));
+                    break;
+                case "xValue":
+                    comparator = Comparator.comparing(PointDTO::getXValue, Comparator.nullsLast(Double::compareTo));
+                    break;
+                case "yValue":
+                    comparator = Comparator.comparing(PointDTO::getYValue, Comparator.nullsLast(Double::compareTo));
+                    break;
+                default:
+                    comparator = null;
+            }
+            if (comparator != null) {
+                if ("desc".equalsIgnoreCase(order)) comparator = comparator.reversed();
+                dtos.sort(comparator);
+            }
+        }
+
+        sendSuccessList(resp, HttpServletResponse.SC_OK, dtos, dtos.size());
     }
 
     private void handleGetByFunctionAndX(Long funcId, Double xValue, HttpServletResponse resp) throws IOException, SQLException {
@@ -209,13 +452,7 @@ public class PointServlet extends HttpServlet {
         PointDTO createdDTO = new PointDTO(id, pointDTO.getFuncId(), 
                                           pointDTO.getXValue(), pointDTO.getYValue());
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("data", createdDTO);
-        response.put("message", "Точка успешно создана");
-
-        objectMapper.writeValue(resp.getWriter(), response);
-        resp.setStatus(HttpServletResponse.SC_CREATED);
+        sendSuccess(resp, HttpServletResponse.SC_CREATED, createdDTO, "Точка успешно создана");
     }
 
     private void handleUpdate(Long id, PointDTO pointDTO, HttpServletResponse resp) throws IOException, SQLException {
@@ -244,28 +481,47 @@ public class PointServlet extends HttpServlet {
         boolean deleted = pointDAO.deleteById(id);
         
         if (deleted) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Точка успешно удалена");
-
-            objectMapper.writeValue(resp.getWriter(), response);
-            resp.setStatus(HttpServletResponse.SC_OK);
+            sendSuccess(resp, HttpServletResponse.SC_OK, null, "Точка успешно удалена");
         } else {
             sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Точка не найдена");
         }
     }
 
-    private void sendError(HttpServletResponse resp, int status, String code, String message) throws IOException {
-        resp.setStatus(status);
-        Map<String, Object> errorResponse = new HashMap<>();
-        errorResponse.put("success", false);
-        
-        Map<String, String> error = new HashMap<>();
-        error.put("code", code);
-        error.put("message", message);
-        errorResponse.put("error", error);
+    private void handleGetByFunctionAndXRange(Long funcId, double xMin, double xMax, HttpServletResponse resp) throws IOException, SQLException {
+        List<PointDAO.Point> points = pointDAO.findByFunctionIdAndXRange(funcId, xMin, xMax);
+        List<PointDTO> dtos = new ArrayList<>();
+        for (PointDAO.Point p : points) {
+            dtos.add(new PointDTO(p.getId(), p.getFunctionId(), p.getXValue(), p.getYValue()));
+        }
+        sendSuccessList(resp, HttpServletResponse.SC_OK, dtos, dtos.size());
+    }
 
-        objectMapper.writeValue(resp.getWriter(), errorResponse);
+    private void handleGetByFunctionAndY(Long funcId, double yValue, HttpServletResponse resp) throws IOException, SQLException {
+        List<PointDAO.Point> points = pointDAO.findByFunctionIdAndY(funcId, yValue);
+        List<PointDTO> dtos = new ArrayList<>();
+        for (PointDAO.Point p : points) {
+            dtos.add(new PointDTO(p.getId(), p.getFunctionId(), p.getXValue(), p.getYValue()));
+        }
+        sendSuccessList(resp, HttpServletResponse.SC_OK, dtos, dtos.size());
+    }
+
+    private void handleGetByFunctionAndYRange(Long funcId, double yMin, double yMax, HttpServletResponse resp) throws IOException, SQLException {
+        List<PointDAO.Point> points = pointDAO.findByFunctionIdAndYRange(funcId, yMin, yMax);
+        List<PointDTO> dtos = new ArrayList<>();
+        for (PointDAO.Point p : points) {
+            dtos.add(new PointDTO(p.getId(), p.getFunctionId(), p.getXValue(), p.getYValue()));
+        }
+        sendSuccessList(resp, HttpServletResponse.SC_OK, dtos, dtos.size());
+    }
+
+    public static class BatchPointsRequest {
+        public Long funcId;
+        public List<SimplePoint> points;
+    }
+
+    public static class SimplePoint {
+        public Double xValue;
+        public Double yValue;
     }
 }
 
