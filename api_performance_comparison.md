@@ -1,29 +1,39 @@
-# Сравнение производительности API запросов
+﻿# РЎСЂР°РІРЅРµРЅРёРµ РїСЂРѕРёР·РІРѕРґРёС‚РµР»СЊРЅРѕСЃС‚Рё API Р·Р°РїСЂРѕСЃРѕРІ
 
-## Сравнительная таблица
+## Р РµР·СѓР»СЊС‚Р°С‚С‹ С‚РµСЃС‚РёСЂРѕРІР°РЅРёСЏ
 
-| Endpoint | Method | Manual Avg (ms) | Manual Min (ms) | Manual Max (ms) | Manual Success (%) | Framework Avg (ms) | Framework Min (ms) | Framework Max (ms) | Framework Success (%) | Разница (ms) | Улучшение (%) |
+
+РљРѕР»РёС‡РµСЃС‚РІРѕ РёС‚РµСЂР°С†РёР№: 2
+
+
+
+## РЎСЂР°РІРЅРёС‚РµР»СЊРЅР°СЏ С‚Р°Р±Р»РёС†Р°
+
+| Endpoint | Method | Manual Avg (ms) | Manual Min (ms) | Manual Max (ms) | Manual Success (%) | Framework Avg (ms) | Framework Min (ms) | Framework Max (ms) | Framework Success (%) | Р Р°Р·РЅРёС†Р° (ms) | РЈР»СѓС‡С€РµРЅРёРµ (%) |
 |----------|--------|-----------------|----------------|-----------------|-------------------|-------------------|-------------------|-------------------|---------------------|--------------|---------------|
-| Get All Users | GET | - | - | - | - | - | - | - | - | - | - |
-| Get User by ID | GET | - | - | - | - | - | - | - | - | - | - |
-| Create User | POST | - | - | - | - | - | - | - | - | - | - |
-| Update User | PUT | - | - | - | - | - | - | - | - | - | - |
-| Search User by Login | GET | - | - | - | - | - | - | - | - | - | - |
-| Delete User | DELETE | - | - | - | - | - | - | - | - | - | - |
-| Get All Functions | GET | - | - | - | - | - | - | - | - | - | - |
-| Get Function by ID | GET | - | - | - | - | - | - | - | - | - | - |
-| Create Function | POST | - | - | - | - | - | - | - | - | - | - |
-| Get Functions by User ID | GET | - | - | - | - | - | - | - | - | - | - |
-| Get All Points | GET | - | - | - | - | - | - | - | - | - | - |
-| Create Point | POST | - | - | - | - | - | - | - | - | - | - |
-| Get Points by Function ID | GET | - | - | - | - | - | - | - | - | - | - |
-| Get All Results | GET | - | - | - | - | - | - | - | - | - | - |
-| Create Result | POST | - | - | - | - | - | - | - | - | - | - | - |
-| DFS Search | POST | - | - | - | - | - | - | - | - | - | - | - |
-| BFS Search | POST | - | - | - | - | - | - | - | - | - | - | - |
-| Single Search | POST | - | - | - | - | - | - | - | - | - | - | - |
-
----
+| BFS Search | GET | 3 | 3 | 3 | 0% | 5 | 5 | 5 | 100% | 2 | -66.67 |
+| Create Function | POST | 3 | 3 | 3 | 0% | 4 | 4 | 4 | 0% | 1 | -33.33 |
+| Create Point | POST | 15.5 | 14 | 17 | 0% | 4 | 4 | 4 | 0% | -11.5 | 74.19 |
+| Create Result | POST | 3.5 | 3 | 4 | 0% | 4 | 4 | 4 | 0% | 0.5 | -14.29 |
+| Create User | POST | 4 | 4 | 4 | 0% | 12 | 7 | 17 | 0% | 8 | -200 |
+| Delete User | DELETE | 3 | 3 | 3 | 0% | 4 | 4 | 4 | 0% | 1 | -33.33 |
+| DFS Search | GET | 3 | 3 | 3 | 0% | 6 | 6 | 6 | 100% | 3 | -100 |
+| Get All Functions | GET | 4 | 3 | 5 | 0% | 4 | 4 | 4 | 100% | 0 | 0 |
+| Get All Points | GET | 3.5 | 3 | 4 | 0% | 4 | 4 | 4 | 100% | 0.5 | -14.29 |
+| Get All Results | GET | 3 | 3 | 3 | 0% | 3.5 | 3 | 4 | 100% | 0.5 | -16.67 |
+| Get All Users | GET | 27 | 26 | 28 | 0% | 27.5 | 27 | 28 | 100% | 0.5 | -1.85 |
+| Get Function by ID | GET | 3 | 3 | 3 | 0% | 3.5 | 3 | 4 | 0% | 0.5 | -16.67 |
+| Get Functions by User ID | GET | 4 | 4 | 4 | 0% | 5.5 | 5 | 6 | 0% | 1.5 | -37.5 |
+| Get Points by Function ID | GET | 2.5 | 2 | 3 | 0% | 4.5 | 4 | 5 | 0% | 2 | -80 |
+| Get User by ID | GET | 3.5 | 3 | 4 | 0% | 4.5 | 4 | 5 | 0% | 1 | -28.57 |
+| Search User by Login | GET | 4 | 4 | 4 | 0% | 4.5 | 4 | 5 | 100% | 0.5 | -12.5 |
+| Single Search | GET | 3 | 3 | 3 | 0% | 4.5 | 4 | 5 | 100% | 1.5 | -50 |
+| Update User | PUT | 4 | 4 | 4 | 0% | 6.5 | 6 | 7 | 0% | 2.5 | -62.5 |
 
 
+### РћР±С‰Р°СЏ СЃС‚Р°С‚РёСЃС‚РёРєР°
+
+- **РЎСЂРµРґРЅРµРµ РІСЂРµРјСЏ РІС‹РїРѕР»РЅРµРЅРёСЏ (Manual)**: 5.36 РјСЃ
+- **РЎСЂРµРґРЅРµРµ РІСЂРµРјСЏ РІС‹РїРѕР»РЅРµРЅРёСЏ (Framework)**: 6.19 РјСЃ
+- **РћР±С‰РµРµ СѓР»СѓС‡С€РµРЅРёРµ**: -15.54%
 

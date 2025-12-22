@@ -6,7 +6,7 @@ param(
     [int]$Iterations = 5       
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
@@ -40,40 +40,51 @@ function Run-NewmanTests {
         
         # Запускаем Newman с JSON репортером
         $newmanOutput = newman run $CollectionPath `
-            --reporter json `
+            -r json `
             --reporter-json-export $OutputFile `
-            2>&1
+            2>&1 | Out-String
         
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Ошибка при запуске Newman: $newmanOutput" -ForegroundColor Red
+        # Проверяем, создался ли файл результатов (даже если есть предупреждения)
+        if (-not (Test-Path $OutputFile)) {
+            Write-Host "Warning: Output file not created. Newman output: $newmanOutput" -ForegroundColor Yellow
             continue
         }
         
         # Парсим результаты
         if (Test-Path $OutputFile) {
-            $jsonContent = Get-Content $OutputFile -Raw | ConvertFrom-Json
-            
-            foreach ($run in $jsonContent.run.executions) {
-                $requestName = $run.item.name
-                $responseTime = $run.response.responseTime
-                $statusCode = $run.response.code
+            try {
+                $jsonContent = Get-Content $OutputFile -Raw -Encoding UTF8 | ConvertFrom-Json
                 
-                if (-not $BranchResults.ContainsKey($requestName)) {
-                    $BranchResults[$requestName] = @{
-                        times = @()
-                        statusCodes = @()
-                        success = 0
-                        total = 0
+                if ($jsonContent.run -and $jsonContent.run.executions) {
+                    foreach ($run in $jsonContent.run.executions) {
+                        if ($run.item -and $run.response) {
+                            $requestName = $run.item.name
+                            $responseTime = $run.response.responseTime
+                            $statusCode = $run.response.code
+                            
+                            if ($requestName -and $responseTime) {
+                                if (-not $BranchResults.ContainsKey($requestName)) {
+                                    $BranchResults[$requestName] = @{
+                                        times = @()
+                                        statusCodes = @()
+                                        success = 0
+                                        total = 0
+                                    }
+                                }
+                                
+                                $BranchResults[$requestName].times += $responseTime
+                                $BranchResults[$requestName].statusCodes += $statusCode
+                                $BranchResults[$requestName].total++
+                                
+                                if ($statusCode -ge 200 -and $statusCode -lt 300) {
+                                    $BranchResults[$requestName].success++
+                                }
+                            }
+                        }
                     }
                 }
-                
-                $BranchResults[$requestName].times += $responseTime
-                $BranchResults[$requestName].statusCodes += $statusCode
-                $BranchResults[$requestName].total++
-                
-                if ($statusCode -ge 200 -and $statusCode -lt 300) {
-                    $BranchResults[$requestName].success++
-                }
+            } catch {
+                Write-Host "Error parsing JSON file: $_" -ForegroundColor Yellow
             }
         }
     }
@@ -101,39 +112,8 @@ function Run-NewmanTests {
     return $Summary
 }
 
-# Запускаем тесты для manual ветки
-if ($Branch -eq "manual" -or $Branch -eq "both") {
-    if (Test-Path $ManualCollection) {
-        $Results.manual = Run-NewmanTests -CollectionPath $ManualCollection -BranchName "manual" -Iterations $Iterations
-    } else {
-        Write-Host "Коллекция для manual ветки не найдена: $ManualCollection" -ForegroundColor Red
-    }
-}
-
-# Запускаем тесты для framework ветки
-if ($Branch -eq "framework" -or $Branch -eq "both") {
-    if (Test-Path $FrameworkCollection) {
-        $Results.framework = Run-NewmanTests -CollectionPath $FrameworkCollection -BranchName "framework" -Iterations $Iterations
-    } else {
-        Write-Host "Коллекция для framework ветки не найдена: $FrameworkCollection" -ForegroundColor Red
-    }
-}
-
-# Сохраняем результаты в JSON
-$ResultsJson = Join-Path $ResultsDir "performance-results.json"
-$Results | ConvertTo-Json -Depth 10 | Out-File $ResultsJson -Encoding UTF8
-Write-Host "`nРезультаты сохранены в: $ResultsJson" -ForegroundColor Green
-
-# Генерируем таблицу сравнения
-$TableContent = Generate-ComparisonTable -Results $Results
-$TableFile = Join-Path $ProjectRoot "api_performance_comparison.md"
-$TableContent | Out-File $TableFile -Encoding UTF8
-Write-Host "Таблица сравнения сохранена в: $TableFile" -ForegroundColor Green
-
-Write-Host "`n=== Тестирование завершено ===" -ForegroundColor Cyan
-
 function Generate-ComparisonTable {
-    param([hashtable]$Results)
+    param([hashtable]$Results, [int]$Iterations)
     
     $table = @"
 # Сравнение производительности API запросов
@@ -222,4 +202,35 @@ function Generate-ComparisonTable {
 
     return $table
 }
+
+# Запускаем тесты для manual ветки
+if ($Branch -eq "manual" -or $Branch -eq "both") {
+    if (Test-Path $ManualCollection) {
+        $Results.manual = Run-NewmanTests -CollectionPath $ManualCollection -BranchName "manual" -Iterations $Iterations
+    } else {
+        Write-Host "Коллекция для manual ветки не найдена: $ManualCollection" -ForegroundColor Red
+    }
+}
+
+# Запускаем тесты для framework ветки
+if ($Branch -eq "framework" -or $Branch -eq "both") {
+    if (Test-Path $FrameworkCollection) {
+        $Results.framework = Run-NewmanTests -CollectionPath $FrameworkCollection -BranchName "framework" -Iterations $Iterations
+    } else {
+        Write-Host "Коллекция для framework ветки не найдена: $FrameworkCollection" -ForegroundColor Red
+    }
+}
+
+# Сохраняем результаты в JSON
+$ResultsJson = Join-Path $ResultsDir "performance-results.json"
+$Results | ConvertTo-Json -Depth 10 | Out-File $ResultsJson -Encoding UTF8
+Write-Host "`nРезультаты сохранены в: $ResultsJson" -ForegroundColor Green
+
+# Генерируем таблицу сравнения
+$TableContent = Generate-ComparisonTable -Results $Results -Iterations $Iterations
+$TableFile = Join-Path $ProjectRoot "api_performance_comparison.md"
+$TableContent | Out-File $TableFile -Encoding UTF8
+Write-Host "Таблица сравнения сохранена в: $TableFile" -ForegroundColor Green
+
+Write-Host "`n=== Тестирование завершено ===" -ForegroundColor Cyan
 
