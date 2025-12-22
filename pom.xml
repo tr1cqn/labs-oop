@@ -55,12 +55,11 @@
             <artifactId>postgresql</artifactId>
             <version>42.7.1</version>
         </dependency>
-        <!-- H2 Database для тестов -->
+        <!-- H2 Database (используется в runtime для in-memory БД) -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <version>2.2.224</version>
-            <scope>test</scope>
         </dependency>
         <!-- 5. НОВОЕ: Для работы с JSON в сервлетах (опционально, но очень рекомендуется) -->
         <dependency>
