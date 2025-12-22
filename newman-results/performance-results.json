@@ -1,0 +1,21 @@
+﻿{
+    "manual":  {
+                   "Test Endpoint":  {
+                                         "successRate":  100,
+                                         "maxTime":  60,
+                                         "minTime":  57,
+                                         "avgTime":  58.5,
+                                         "iterations":  2
+                                     },
+                   "Get All Users":  {
+                                         "successRate":  100,
+                                         "maxTime":  3711,
+                                         "minTime":  16,
+                                         "avgTime":  1863.5,
+                                         "iterations":  2
+                                     }
+               },
+    "framework":  {
+
+                  }
+}
