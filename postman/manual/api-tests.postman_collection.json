@@ -1,0 +1,311 @@
+{
+	"info": {
+		"_postman_id": "manual-api-tests",
+		"name": "Manual API Tests",
+		"description": "Postman collection for testing Manual branch (Servlets) API endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Get All Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users?sortBy=id&order=asc",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users"],
+							"query": [
+								{"key": "sortBy", "value": "id"},
+								{"key": "order", "value": "asc"}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Response time is less than 500ms\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(500);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "1"]
+						}
+					}
+				},
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"login\": \"testuser\",\n  \"password\": \"password123\",\n  \"email\": \"test@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users"]
+						}
+					}
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"login\": \"updateduser\",\n  \"password\": \"newpassword\",\n  \"email\": \"updated@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "1"]
+						}
+					}
+				},
+				{
+					"name": "Search User by Login",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/search?login=testuser",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "search"],
+							"query": [{"key": "login", "value": "testuser"}]
+						}
+					}
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Functions",
+			"item": [
+				{
+					"name": "Get All Functions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/functions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "functions"]
+						}
+					}
+				},
+				{
+					"name": "Get Function by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/functions/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "functions", "1"]
+						}
+					}
+				},
+				{
+					"name": "Create Function",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": 1,\n  \"name\": \"Test Function\",\n  \"type\": \"linear\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/functions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "functions"]
+						}
+					}
+				},
+				{
+					"name": "Get Functions by User ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/functions/user/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "functions", "user", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Points",
+			"item": [
+				{
+					"name": "Get All Points",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/points",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "points"]
+						}
+					}
+				},
+				{
+					"name": "Create Point",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"funcId\": 1,\n  \"xValue\": 1.0,\n  \"yValue\": 10.0\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/points",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "points"]
+						}
+					}
+				},
+				{
+					"name": "Get Points by Function ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/points/function/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "points", "function", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Results",
+			"item": [
+				{
+					"name": "Get All Results",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/results",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "results"]
+						}
+					}
+				},
+				{
+					"name": "Create Result",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"resultId\": 1,\n  \"result\": \"Test result\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/results",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "results"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Search",
+			"item": [
+				{
+					"name": "DFS Search",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"criteria\": {\n    \"fieldName\": \"login\",\n    \"value\": \"test\",\n    \"operator\": \"CONTAINS\",\n    \"sortField\": \"id\",\n    \"sortDirection\": \"ASC\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/search/dfs",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "search", "dfs"]
+						}
+					}
+				},
+				{
+					"name": "BFS Search",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"criteria\": {\n    \"fieldName\": \"type\",\n    \"value\": \"linear\",\n    \"operator\": \"EQUALS\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/search/bfs",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "search", "bfs"]
+						}
+					}
+				},
+				{
+					"name": "Single Search",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"entityType\": \"UserDTO\",\n  \"criteria\": {\n    \"fieldName\": \"login\",\n    \"value\": \"test\",\n    \"operator\": \"STARTS_WITH\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/search/single",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "search", "single"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8081",
+			"type": "string"
+		}
+	]
+}
+
