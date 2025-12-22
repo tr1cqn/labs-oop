@@ -6,12 +6,14 @@ import entity.Point;
 import entity.Result;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Service;
 
 import java.util.*;
 
 /**
  * Вспомогательный класс для построения иерархической структуры данных
  */
+@Service
 public class HierarchicalDataBuilder {
     private static final Logger logger = LogManager.getLogger(HierarchicalDataBuilder.class);
     
