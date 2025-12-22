@@ -104,7 +104,6 @@ public class UserServlet extends AbstractApiServlet {
         }
     }
 
-    @Override
     protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         prepareJsonResponse(resp);
         List<String> segments = pathSegments(req);

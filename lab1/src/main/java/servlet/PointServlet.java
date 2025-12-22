@@ -185,7 +185,6 @@ public class PointServlet extends AbstractApiServlet {
         }
     }
 
-    @Override
     protected void doPatch(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         prepareJsonResponse(resp);
         List<String> segments = pathSegments(req);
