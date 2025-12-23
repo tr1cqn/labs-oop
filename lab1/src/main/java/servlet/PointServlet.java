@@ -1,6 +1,7 @@
 package servlet;
 
 import database.dao.PointDAO;
+import database.dao.FunctionDAO;
 import database.dto.PointDTO;
 import database.mapper.PointMapper;
 
@@ -22,6 +23,7 @@ import java.util.Map;
 @WebServlet("/api/v1/points/*")
 public class PointServlet extends AbstractApiServlet {
     private final PointDAO pointDAO = new PointDAO();
+    private final FunctionDAO functionDAO = new FunctionDAO();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -32,19 +34,45 @@ public class PointServlet extends AbstractApiServlet {
         try {
             // GET /api/v1/points
             if (segments.isEmpty()) {
+                if (!isAdmin(req)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
+                    return;
+                }
                 handleGetAll(req, resp);
                 return;
             }
 
             // GET /api/v1/points/{id}
             if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
-                handleGetById(parseLongStrict(segments.get(0)), resp);
+                Long id = parseLongStrict(segments.get(0));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var pOpt = pointDAO.findById(id);
+                    if (pOpt.isEmpty()) {
+                        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Точка не найдена");
+                        return;
+                    }
+                    var fOpt = functionDAO.findById(pOpt.get().getFunctionId());
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
+                handleGetById(id, resp);
                 return;
             }
 
             // GET /api/v1/points/function/{funcId}/...
             if (segments.size() >= 2 && "function".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+")) {
                 Long funcId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(funcId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
 
                 // /function/{funcId}
                 if (segments.size() == 2) {
@@ -126,6 +154,14 @@ public class PointServlet extends AbstractApiServlet {
                     sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "funcId, xValue, yValue обязательны");
                     return;
                 }
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(pointDTO.getFuncId());
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 handleCreate(pointDTO, resp);
                 return;
             }
@@ -136,6 +172,14 @@ public class PointServlet extends AbstractApiServlet {
                 if (body == null || body.funcId == null || body.points == null || body.points.isEmpty()) {
                     sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "funcId и points обязательны");
                     return;
+                }
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(body.funcId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
                 }
 
                 List<PointDTO> created = new ArrayList<>();
@@ -177,6 +221,19 @@ public class PointServlet extends AbstractApiServlet {
             }
 
             Long id = parseLongStrict(segments.get(0));
+            AuthContext ctx = auth(req);
+            if (ctx != null && !ctx.isAdmin()) {
+                var pOpt = pointDAO.findById(id);
+                if (pOpt.isEmpty()) {
+                    sendError(resp, HttpServletResponse.SC_NOT_FOUND, "POINT_NOT_FOUND", "Точка не найдена");
+                    return;
+                }
+                var fOpt = functionDAO.findById(pOpt.get().getFunctionId());
+                if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                    return;
+                }
+            }
             PointDTO pointDTO = objectMapper.readValue(req.getReader(), PointDTO.class);
             handleUpdate(id, pointDTO, resp);
         } catch (Exception e) {
@@ -194,6 +251,19 @@ public class PointServlet extends AbstractApiServlet {
             // PATCH /api/v1/points/{id}/y
             if (segments.size() == 2 && segments.get(0).matches("\\d+") && "y".equalsIgnoreCase(segments.get(1))) {
                 Long id = parseLongStrict(segments.get(0));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var pOpt = pointDAO.findById(id);
+                    if (pOpt.isEmpty()) {
+                        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "POINT_NOT_FOUND", "Точка не найдена");
+                        return;
+                    }
+                    var fOpt = functionDAO.findById(pOpt.get().getFunctionId());
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
                 Object y = body.get("yValue");
                 if (!(y instanceof Number)) {
@@ -217,6 +287,14 @@ public class PointServlet extends AbstractApiServlet {
                     && "x".equalsIgnoreCase(segments.get(2))
                     && "y".equalsIgnoreCase(segments.get(4))) {
                 Long funcId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(funcId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 Double xValue = parseDoubleStrict(segments.get(3));
                 Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
                 Object y = body.get("yValue");
@@ -240,6 +318,14 @@ public class PointServlet extends AbstractApiServlet {
                     && segments.get(1).matches("\\d+")
                     && "multiply".equalsIgnoreCase(segments.get(2))) {
                 Long funcId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(funcId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 String coeff = req.getParameter("coefficient");
                 if (coeff == null) {
                     sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "coefficient обязателен");
@@ -268,6 +354,19 @@ public class PointServlet extends AbstractApiServlet {
             // DELETE /api/v1/points/{id}
             if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
                 Long id = parseLongStrict(segments.get(0));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var pOpt = pointDAO.findById(id);
+                    if (pOpt.isEmpty()) {
+                        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "POINT_NOT_FOUND", "Точка не найдена");
+                        return;
+                    }
+                    var fOpt = functionDAO.findById(pOpt.get().getFunctionId());
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 handleDeleteById(id, resp);
                 return;
             }
@@ -278,6 +377,14 @@ public class PointServlet extends AbstractApiServlet {
                     && segments.get(1).matches("\\d+")
                     && "x".equalsIgnoreCase(segments.get(2))) {
                 Long funcId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(funcId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 Double xValue = parseDoubleStrict(segments.get(3));
                 boolean deleted = pointDAO.deleteByFunctionAndX(funcId, xValue);
                 if (!deleted) {
@@ -291,6 +398,14 @@ public class PointServlet extends AbstractApiServlet {
             // DELETE /api/v1/points/function/{funcId}
             if (segments.size() == 2 && "function".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+")) {
                 Long funcId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(funcId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 int deleted = pointDAO.deleteByFunctionId(funcId);
                 sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("deleted", deleted), "Удалено точек: " + deleted);
                 return;
@@ -302,6 +417,14 @@ public class PointServlet extends AbstractApiServlet {
                     && segments.get(1).matches("\\d+")
                     && "range".equalsIgnoreCase(segments.get(2))) {
                 Long funcId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(funcId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 Double xMin = req.getParameter("xMin") == null ? null : Double.parseDouble(req.getParameter("xMin"));
                 Double xMax = req.getParameter("xMax") == null ? null : Double.parseDouble(req.getParameter("xMax"));
                 if (xMin == null || xMax == null) {

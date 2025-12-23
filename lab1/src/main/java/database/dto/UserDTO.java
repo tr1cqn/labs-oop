@@ -8,6 +8,7 @@ public class UserDTO {
     private String login;
     private String password;
     private String email;
+    private String role;
     
     // Конструкторы
     public UserDTO() {
@@ -18,6 +19,14 @@ public class UserDTO {
         this.login = login;
         this.password = password;
         this.email = email;
+    }
+
+    public UserDTO(Long id, String login, String password, String email, String role) {
+        this.id = id;
+        this.login = login;
+        this.password = password;
+        this.email = email;
+        this.role = role;
     }
     
     // Getters and Setters
@@ -52,6 +61,14 @@ public class UserDTO {
     public void setEmail(String email) {
         this.email = email;
     }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
     
     @Override
     public String toString() {
@@ -59,6 +76,7 @@ public class UserDTO {
                 "id=" + id +
                 ", login='" + login + '\'' +
                 ", email='" + email + '\'' +
+                ", role='" + role + '\'' +
                 '}';
     }
     
@@ -71,7 +89,8 @@ public class UserDTO {
         
         if (id != null ? !id.equals(userDTO.id) : userDTO.id != null) return false;
         if (login != null ? !login.equals(userDTO.login) : userDTO.login != null) return false;
-        return email != null ? email.equals(userDTO.email) : userDTO.email == null;
+        if (email != null ? !email.equals(userDTO.email) : userDTO.email != null) return false;
+        return role != null ? role.equals(userDTO.role) : userDTO.role == null;
     }
     
     @Override
@@ -79,6 +98,7 @@ public class UserDTO {
         int result = id != null ? id.hashCode() : 0;
         result = 31 * result + (login != null ? login.hashCode() : 0);
         result = 31 * result + (email != null ? email.hashCode() : 0);
+        result = 31 * result + (role != null ? role.hashCode() : 0);
         return result;
     }
 }

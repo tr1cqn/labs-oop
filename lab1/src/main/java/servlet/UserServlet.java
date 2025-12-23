@@ -32,12 +32,20 @@ public class UserServlet extends AbstractApiServlet {
         try {
             // GET /api/v1/users
             if (segments.isEmpty()) {
+                if (!isAdmin(req)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
+                    return;
+                }
                 handleGetAll(req, resp);
                 return;
             }
 
             // GET /api/v1/users/search?... (контракт)
             if ("search".equalsIgnoreCase(segments.get(0))) {
+                if (!isAdmin(req)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
+                    return;
+                }
                 handleSearch(req, resp);
                 return;
             }
@@ -45,6 +53,10 @@ public class UserServlet extends AbstractApiServlet {
             // GET /api/v1/users/{id}
             if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
                 Long id = parseLongStrict(segments.get(0));
+                if (!isAdmin(req) && !isSelf(req, id)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своему профилю");
+                    return;
+                }
                 handleGetById(id, resp);
                 return;
             }
@@ -72,6 +84,12 @@ public class UserServlet extends AbstractApiServlet {
                 sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "login и password обязательны");
                 return;
             }
+            // Роль можно задавать только ADMIN. Иначе всегда создаём USER.
+            if (!isAdmin(req)) {
+                userDTO.setRole("USER");
+            } else if (userDTO.getRole() == null || userDTO.getRole().isBlank()) {
+                userDTO.setRole("USER");
+            }
             handleCreate(userDTO, resp);
         } catch (Exception e) {
             logger.error("Ошибка при обработке POST запроса", e);
@@ -92,6 +110,10 @@ public class UserServlet extends AbstractApiServlet {
             }
 
             Long id = parseLongStrict(segments.get(0));
+            if (!isAdmin(req) && !isSelf(req, id)) {
+                sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своему профилю");
+                return;
+            }
             UserDTO userDTO = objectMapper.readValue(req.getReader(), UserDTO.class);
             if (!UserMapper.isValid(userDTO)) {
                 sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "login и password обязательны");
@@ -117,6 +139,10 @@ public class UserServlet extends AbstractApiServlet {
             }
             Long id = parseLongStrict(segments.get(0));
             String field = segments.get(1);
+            if (!isAdmin(req) && !isSelf(req, id)) {
+                sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своему профилю");
+                return;
+            }
 
             Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
 
@@ -165,6 +191,31 @@ public class UserServlet extends AbstractApiServlet {
                 return;
             }
 
+            // PATCH /api/v1/users/{id}/role (только ADMIN)
+            if ("role".equalsIgnoreCase(field)) {
+                if (!isAdmin(req)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
+                    return;
+                }
+                Object role = body.get("role");
+                if (!(role instanceof String) || ((String) role).isBlank()) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "role обязателен");
+                    return;
+                }
+                String r = ((String) role).trim().toUpperCase();
+                if (!("ADMIN".equals(r) || "USER".equals(r))) {
+                    sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "role должен быть ADMIN или USER");
+                    return;
+                }
+                boolean updated = userDAO.updateRole(id, r);
+                if (!updated) {
+                    sendError(resp, HttpServletResponse.SC_NOT_FOUND, "USER_NOT_FOUND", "Пользователь не найден");
+                    return;
+                }
+                sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("id", id, "role", r), "Роль обновлена");
+                return;
+            }
+
             sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Маршрут не найден");
         } catch (Exception e) {
             logger.error("Ошибка при обработке PATCH запроса", e);
@@ -182,10 +233,18 @@ public class UserServlet extends AbstractApiServlet {
             // DELETE /api/v1/users/{id}
             if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
                 Long id = parseLongStrict(segments.get(0));
+                if (!isAdmin(req) && !isSelf(req, id)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своему профилю");
+                    return;
+                }
                 handleDeleteById(id, resp);
             }
             // DELETE /api/v1/users?login=...
             else if (segments.isEmpty() && req.getParameter("login") != null) {
+                if (!isAdmin(req)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
+                    return;
+                }
                 handleDeleteByLogin(req.getParameter("login"), resp);
             } else {
                 sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "ID или login обязателен");
@@ -203,7 +262,7 @@ public class UserServlet extends AbstractApiServlet {
         
         for (UserDAO.User user : users) {
             // Преобразуем User в UserDTO (без пароля для безопасности)
-            UserDTO dto = new UserDTO(user.getId(), user.getLogin(), null, user.getEmail());
+            UserDTO dto = new UserDTO(user.getId(), user.getLogin(), null, user.getEmail(), user.getRole());
             dtos.add(dto);
         }
 
@@ -245,7 +304,7 @@ public class UserServlet extends AbstractApiServlet {
         
         if (userOpt.isPresent()) {
             UserDAO.User user = userOpt.get();
-            UserDTO dto = new UserDTO(user.getId(), user.getLogin(), null, user.getEmail());
+            UserDTO dto = new UserDTO(user.getId(), user.getLogin(), null, user.getEmail(), user.getRole());
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -282,7 +341,7 @@ public class UserServlet extends AbstractApiServlet {
         
         if (userOpt.isPresent()) {
             UserDAO.User user = userOpt.get();
-            UserDTO dto = new UserDTO(user.getId(), user.getLogin(), null, user.getEmail());
+            UserDTO dto = new UserDTO(user.getId(), user.getLogin(), null, user.getEmail(), user.getRole());
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -301,7 +360,7 @@ public class UserServlet extends AbstractApiServlet {
         
         if (userOpt.isPresent()) {
             UserDAO.User user = userOpt.get();
-            UserDTO dto = new UserDTO(user.getId(), user.getLogin(), null, user.getEmail());
+            UserDTO dto = new UserDTO(user.getId(), user.getLogin(), null, user.getEmail(), user.getRole());
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -320,7 +379,7 @@ public class UserServlet extends AbstractApiServlet {
         List<UserDTO> dtos = new ArrayList<>();
         
         for (UserDAO.User user : users) {
-            UserDTO dto = new UserDTO(user.getId(), user.getLogin(), null, user.getEmail());
+            UserDTO dto = new UserDTO(user.getId(), user.getLogin(), null, user.getEmail(), user.getRole());
             dtos.add(dto);
         }
 
@@ -338,12 +397,12 @@ public class UserServlet extends AbstractApiServlet {
         
         Long id;
         if (userDTO.getEmail() != null && !userDTO.getEmail().isEmpty()) {
-            id = userDAO.insert(userDTO.getLogin(), userDTO.getPassword(), userDTO.getEmail());
+            id = userDAO.insert(userDTO.getLogin(), userDTO.getPassword(), userDTO.getEmail(), userDTO.getRole());
         } else {
-            id = userDAO.insert(userDTO.getLogin(), userDTO.getPassword());
+            id = userDAO.insert(userDTO.getLogin(), userDTO.getPassword(), userDTO.getRole());
         }
 
-        UserDTO createdDTO = new UserDTO(id, userDTO.getLogin(), null, userDTO.getEmail());
+        UserDTO createdDTO = new UserDTO(id, userDTO.getLogin(), null, userDTO.getEmail(), userDTO.getRole());
         sendSuccess(resp, HttpServletResponse.SC_CREATED, createdDTO, "Пользователь успешно создан");
     }
 
@@ -353,7 +412,10 @@ public class UserServlet extends AbstractApiServlet {
         boolean updated = userDAO.update(id, userDTO.getLogin(), userDTO.getPassword(), userDTO.getEmail());
         
         if (updated) {
-            UserDTO updatedDTO = new UserDTO(id, userDTO.getLogin(), null, userDTO.getEmail());
+            // роль тут не меняем (отдельный endpoint /role)
+            var userOpt = userDAO.findById(id);
+            String role = userOpt.isPresent() ? userOpt.get().getRole() : null;
+            UserDTO updatedDTO = new UserDTO(id, userDTO.getLogin(), null, userDTO.getEmail(), role);
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);

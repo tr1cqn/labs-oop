@@ -21,6 +21,30 @@ public abstract class AbstractApiServlet extends HttpServlet {
     protected final Logger logger = LogManager.getLogger(getClass());
     protected final ObjectMapper objectMapper = new ObjectMapper();
 
+    protected AuthContext auth(HttpServletRequest req) {
+        Object v = req.getAttribute(AuthContext.ATTR_NAME);
+        return (v instanceof AuthContext) ? (AuthContext) v : null;
+    }
+
+    protected boolean isAdmin(HttpServletRequest req) {
+        AuthContext ctx = auth(req);
+        return ctx != null && ctx.isAdmin();
+    }
+
+    protected void requireAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        if (!isAdmin(req)) {
+            AuthContext ctx = auth(req);
+            logger.warn("FORBIDDEN admin-only: {} {} login={}",
+                    req.getMethod(), req.getRequestURI(), ctx == null ? null : ctx.getLogin());
+            sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
+        }
+    }
+
+    protected boolean isSelf(HttpServletRequest req, Long userId) {
+        AuthContext ctx = auth(req);
+        return ctx != null && userId != null && userId.equals(ctx.getUserId());
+    }
+
     protected void prepareJsonResponse(HttpServletResponse resp) {
         resp.setContentType("application/json");
         resp.setCharacterEncoding("UTF-8");

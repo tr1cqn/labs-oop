@@ -33,6 +33,7 @@ public class FunctionDAO {
     private static final String DELETE_BY_ID = "DELETE FROM functions WHERE id = ?";
     private static final String DELETE_BY_USER_ID = "DELETE FROM functions WHERE user_id = ?";
     private static final String DELETE_BY_TYPE = "DELETE FROM functions WHERE type = ?";
+    private static final String DELETE_BY_TYPE_AND_USER_ID = "DELETE FROM functions WHERE user_id = ? AND type = ?";
     
     /**
      * Находит все функции
@@ -393,6 +394,24 @@ public class FunctionDAO {
             return rowsAffected;
         } catch (SQLException e) {
             logger.error("Ошибка при удалении функций по типу: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * Удаляет функции определенного типа у конкретного пользователя (для USER роли)
+     */
+    public int deleteByTypeAndUserId(Long userId, String type) throws SQLException {
+        logger.info("Удаление функций типа {} у пользователя {}", type, userId);
+        try (Connection connection = ConnectionManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(DELETE_BY_TYPE_AND_USER_ID)) {
+            statement.setLong(1, userId);
+            statement.setString(2, type);
+            int rowsAffected = statement.executeUpdate();
+            logger.info("Удалено функций типа {} у пользователя {}: {}", type, userId, rowsAffected);
+            return rowsAffected;
+        } catch (SQLException e) {
+            logger.error("Ошибка при удалении функций по типу и пользователю: {}", e.getMessage(), e);
             throw e;
         }
     }

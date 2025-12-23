@@ -31,12 +31,33 @@ public class FunctionServlet extends AbstractApiServlet {
         try {
             // GET /api/v1/functions
             if (segments.isEmpty()) {
-                handleGetAll(req, resp);
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    handleGetByUserId(ctx.getUserId(), req, resp);
+                } else {
+                    handleGetAll(req, resp);
+                }
                 return;
             }
 
             // GET /api/v1/functions/search?... (контракт)
             if ("search".equalsIgnoreCase(segments.get(0))) {
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    // Для USER разрешаем только поиск по типу в рамках своего userId
+                    String type = req.getParameter("type");
+                    String userId = req.getParameter("userId");
+                    if (userId != null && !userId.isBlank() && !String.valueOf(ctx.getUserId()).equals(userId)) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                    if (type != null) {
+                        handleSearchByUserAndType(ctx.getUserId(), type, resp);
+                        return;
+                    }
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав для данного поиска");
+                    return;
+                }
                 handleSearch(req, resp);
                 return;
             }
@@ -44,6 +65,18 @@ public class FunctionServlet extends AbstractApiServlet {
             // GET /api/v1/functions/{id}
             if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
                 Long id = parseLongStrict(segments.get(0));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var opt = functionDAO.findById(id);
+                    if (opt.isEmpty()) {
+                        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Функция не найдена");
+                        return;
+                    }
+                    if (!ctx.getUserId().equals(opt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 handleGetById(id, resp);
                 return;
             }
@@ -51,6 +84,11 @@ public class FunctionServlet extends AbstractApiServlet {
             // GET /api/v1/functions/user/{userId} | /user/{userId}/count
             if (segments.size() >= 2 && "user".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+")) {
                 Long userId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin() && !ctx.getUserId().equals(userId)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                    return;
+                }
                 if (segments.size() == 3 && "count".equalsIgnoreCase(segments.get(2))) {
                     handleCountByUserId(userId, resp);
                     return;
@@ -80,6 +118,11 @@ public class FunctionServlet extends AbstractApiServlet {
                 return;
             }
             FunctionDTO functionDTO = objectMapper.readValue(req.getReader(), FunctionDTO.class);
+            AuthContext ctx = auth(req);
+            if (ctx != null && !ctx.isAdmin()) {
+                // USER может создавать только свои функции
+                functionDTO.setUserId(ctx.getUserId());
+            }
             handleCreate(functionDTO, resp);
         } catch (Exception e) {
             logger.error("Ошибка при обработке POST запроса", e);
@@ -100,6 +143,18 @@ public class FunctionServlet extends AbstractApiServlet {
             }
 
             Long id = parseLongStrict(segments.get(0));
+            AuthContext ctx = auth(req);
+            if (ctx != null && !ctx.isAdmin()) {
+                var opt = functionDAO.findById(id);
+                if (opt.isEmpty()) {
+                    sendError(resp, HttpServletResponse.SC_NOT_FOUND, "FUNCTION_NOT_FOUND", "Функция не найдена");
+                    return;
+                }
+                if (!ctx.getUserId().equals(opt.get().getUserId())) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                    return;
+                }
+            }
             FunctionDTO functionDTO = objectMapper.readValue(req.getReader(), FunctionDTO.class);
             handleUpdate(id, functionDTO, resp);
         } catch (Exception e) {
@@ -117,6 +172,18 @@ public class FunctionServlet extends AbstractApiServlet {
             // PATCH /api/v1/functions/{id}/name | /type
             if (segments.size() == 2 && segments.get(0).matches("\\d+")) {
                 Long id = parseLongStrict(segments.get(0));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var opt = functionDAO.findById(id);
+                    if (opt.isEmpty()) {
+                        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "FUNCTION_NOT_FOUND", "Функция не найдена");
+                        return;
+                    }
+                    if (!ctx.getUserId().equals(opt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 String field = segments.get(1);
                 Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
 
@@ -154,6 +221,11 @@ public class FunctionServlet extends AbstractApiServlet {
             // PATCH /api/v1/functions/user/{userId}/type
             if (segments.size() == 3 && "user".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+") && "type".equalsIgnoreCase(segments.get(2))) {
                 Long userId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin() && !ctx.getUserId().equals(userId)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                    return;
+                }
                 Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
                 Object type = body.get("type");
                 if (!(type instanceof String) || ((String) type).isBlank()) {
@@ -184,6 +256,18 @@ public class FunctionServlet extends AbstractApiServlet {
             // DELETE /api/v1/functions/{id}
             if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
                 Long id = parseLongStrict(segments.get(0));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var opt = functionDAO.findById(id);
+                    if (opt.isEmpty()) {
+                        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "FUNCTION_NOT_FOUND", "Функция не найдена");
+                        return;
+                    }
+                    if (!ctx.getUserId().equals(opt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 handleDeleteById(id, resp);
                 return;
             }
@@ -191,6 +275,11 @@ public class FunctionServlet extends AbstractApiServlet {
             // DELETE /api/v1/functions/user/{userId}
             if (segments.size() == 2 && "user".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+")) {
                 Long userId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin() && !ctx.getUserId().equals(userId)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                    return;
+                }
                 int deleted = functionDAO.deleteByUserId(userId);
                 sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("deleted", deleted), "Удалено функций: " + deleted);
                 return;
@@ -198,7 +287,14 @@ public class FunctionServlet extends AbstractApiServlet {
 
             // DELETE /api/v1/functions?type=...
             if (segments.isEmpty() && req.getParameter("type") != null) {
-                int deleted = functionDAO.deleteByType(req.getParameter("type"));
+                AuthContext ctx = auth(req);
+                String type = req.getParameter("type");
+                int deleted;
+                if (ctx != null && !ctx.isAdmin()) {
+                    deleted = functionDAO.deleteByTypeAndUserId(ctx.getUserId(), type);
+                } else {
+                    deleted = functionDAO.deleteByType(type);
+                }
                 sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("deleted", deleted), "Удалено функций: " + deleted);
                 return;
             }

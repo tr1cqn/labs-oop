@@ -24,8 +24,14 @@ public class UserMapper {
             String login = rs.getString("login");
             String password = rs.getString("password");
             String email = rs.getString("email");
+            String role = null;
+            try {
+                role = rs.getString("role");
+            } catch (SQLException ignored) {
+                // role может отсутствовать в старой схеме
+            }
             
-            UserDTO dto = new UserDTO(id, login, password, email);
+            UserDTO dto = new UserDTO(id, login, password, email, role);
             
             logger.debug("Успешно преобразован UserDTO: id={}, login={}", id, login);
             return dto;
@@ -43,6 +49,13 @@ public class UserMapper {
         
         UserDTO dto = new UserDTO(id, login, password, email);
         
+        logger.debug("UserDTO успешно создан");
+        return dto;
+    }
+
+    public static UserDTO toDTO(Long id, String login, String password, String email, String role) {
+        logger.debug("Создание UserDTO из отдельных полей: id={}, login={}, role={}", id, login, role);
+        UserDTO dto = new UserDTO(id, login, password, email, role);
         logger.debug("UserDTO успешно создан");
         return dto;
     }

@@ -38,6 +38,10 @@ public class SearchServlet extends AbstractApiServlet {
         logger.info("POST {} pathInfo={}", req.getRequestURI(), req.getPathInfo());
 
         try {
+            if (!isAdmin(req)) {
+                sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
+                return;
+            }
             if (segments.size() != 1) {
                 sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Маршрут не найден");
                 return;

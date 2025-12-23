@@ -7,6 +7,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 
 /**
  * Класс для управления подключением к базе данных
@@ -84,7 +86,8 @@ public class ConnectionManager {
                             "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
                             "login VARCHAR(100) UNIQUE NOT NULL, " +
                             "password VARCHAR(255) NOT NULL, " +
-                            "email VARCHAR(255))"
+                            "email VARCHAR(255), " +
+                            "role VARCHAR(20) DEFAULT 'USER')"
             );
 
             // Создаем таблицу functions
@@ -117,6 +120,46 @@ public class ConnectionManager {
             );
 
             logger.info("Таблицы успешно созданы (если не существовали)");
+        }
+
+        // Для существующей схемы — гарантируем наличие колонки role
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'USER'");
+        } catch (SQLException e) {
+            logger.warn("Не удалось добавить колонку role (возможно уже существует): {}", e.getMessage());
+        }
+
+        // Bootstrap: создаём первого ADMIN, если его нет
+        ensureDefaultAdmin(connection);
+    }
+
+    private static void ensureDefaultAdmin(Connection connection) {
+        final String adminLogin = "admin";
+        final String adminPassword = "admin";
+        final String adminEmail = "admin@example.com";
+
+        try (PreparedStatement check = connection.prepareStatement("SELECT COUNT(*) AS c FROM users WHERE login = ?")) {
+            check.setString(1, adminLogin);
+            try (ResultSet rs = check.executeQuery()) {
+                if (rs.next() && rs.getInt("c") > 0) {
+                    return;
+                }
+            }
+        } catch (SQLException e) {
+            logger.warn("Не удалось проверить наличие admin пользователя: {}", e.getMessage());
+            return;
+        }
+
+        try (PreparedStatement insert = connection.prepareStatement(
+                "INSERT INTO users (login, password, email, role) VALUES (?, ?, ?, ?)")) {
+            insert.setString(1, adminLogin);
+            insert.setString(2, adminPassword);
+            insert.setString(3, adminEmail);
+            insert.setString(4, "ADMIN");
+            insert.executeUpdate();
+            logger.warn("Создан bootstrap ADMIN пользователь: login=admin password=admin (смените пароль)");
+        } catch (SQLException e) {
+            logger.warn("Не удалось создать bootstrap admin пользователя: {}", e.getMessage());
         }
     }
 

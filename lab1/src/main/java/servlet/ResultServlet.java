@@ -1,6 +1,7 @@
 package servlet;
 
 import database.dao.ResultDAO;
+import database.dao.FunctionDAO;
 import database.dto.ResultDTO;
 
 import javax.servlet.annotation.WebServlet;
@@ -20,6 +21,7 @@ import java.util.Map;
 @WebServlet("/api/v1/results/*")
 public class ResultServlet extends AbstractApiServlet {
     private final ResultDAO resultDAO = new ResultDAO();
+    private final FunctionDAO functionDAO = new FunctionDAO();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -30,6 +32,10 @@ public class ResultServlet extends AbstractApiServlet {
         try {
             // GET /api/v1/results
             if (segments.isEmpty()) {
+                if (!isAdmin(req)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
+                    return;
+                }
                 // GET /api/v1/results/search?resultLike=...
                 if (req.getParameter("resultLike") != null) {
                     handleSearchByResultLike(req.getParameter("resultLike"), resp);
@@ -41,13 +47,35 @@ public class ResultServlet extends AbstractApiServlet {
 
             // GET /api/v1/results/{id}
             if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
-                handleGetById(parseLongStrict(segments.get(0)), resp);
+                Long id = parseLongStrict(segments.get(0));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var rOpt = resultDAO.findById(id);
+                    if (rOpt.isEmpty()) {
+                        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "NOT_FOUND", "Результат не найден");
+                        return;
+                    }
+                    var fOpt = functionDAO.findById(rOpt.get().getFunctionId());
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
+                handleGetById(id, resp);
                 return;
             }
 
             // GET /api/v1/results/function/{resultId}/...
             if (segments.size() >= 2 && "function".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+")) {
                 Long resultId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(resultId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
 
                 // /function/{resultId}
                 if (segments.size() == 2) {
@@ -77,6 +105,11 @@ public class ResultServlet extends AbstractApiServlet {
 
                 // /function/{resultId}/search?resultLike=...
                 if (segments.size() == 3 && "search".equalsIgnoreCase(segments.get(2))) {
+                    if (!isAdmin(req)) {
+                        // уже проверили ownership выше, но дополнительно режем поиск по тексту только ADMIN
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
+                        return;
+                    }
                     String like = req.getParameter("resultLike");
                     if (like == null) {
                         sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "resultLike обязателен");
@@ -104,12 +137,24 @@ public class ResultServlet extends AbstractApiServlet {
             // POST /api/v1/results
             if (segments.isEmpty()) {
                 ResultDTO resultDTO = objectMapper.readValue(req.getReader(), ResultDTO.class);
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(resultDTO.getResultId());
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 handleCreate(resultDTO, resp);
                 return;
             }
 
             // POST /api/v1/results/batch
             if (segments.size() == 1 && "batch".equalsIgnoreCase(segments.get(0))) {
+                if (!isAdmin(req)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
+                    return;
+                }
                 BatchResultsRequest body = readJson(req, BatchResultsRequest.class);
                 if (body == null || body.resultId == null || body.results == null || body.results.isEmpty()) {
                     sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "VALIDATION_ERROR", "resultId и results обязательны");
@@ -148,6 +193,19 @@ public class ResultServlet extends AbstractApiServlet {
             }
 
             Long id = parseLongStrict(segments.get(0));
+            AuthContext ctx = auth(req);
+            if (ctx != null && !ctx.isAdmin()) {
+                var rOpt = resultDAO.findById(id);
+                if (rOpt.isEmpty()) {
+                    sendError(resp, HttpServletResponse.SC_NOT_FOUND, "RESULT_NOT_FOUND", "Результат не найден");
+                    return;
+                }
+                var fOpt = functionDAO.findById(rOpt.get().getFunctionId());
+                if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                    return;
+                }
+            }
             ResultDTO resultDTO = objectMapper.readValue(req.getReader(), ResultDTO.class);
             handleUpdate(id, resultDTO, resp);
         } catch (Exception e) {
@@ -165,6 +223,14 @@ public class ResultServlet extends AbstractApiServlet {
             // PATCH /api/v1/results/function/{resultId}
             if (segments.size() == 2 && "function".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+")) {
                 Long resultId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(resultId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
                 Object result = body.get("result");
                 if (!(result instanceof String) || ((String) result).isBlank()) {
@@ -179,6 +245,14 @@ public class ResultServlet extends AbstractApiServlet {
             // PATCH /api/v1/results/function/{resultId}/latest
             if (segments.size() == 3 && "function".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+") && "latest".equalsIgnoreCase(segments.get(2))) {
                 Long resultId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(resultId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 Map<String, Object> body = readJson(req, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>(){});
                 Object result = body.get("result");
                 if (!(result instanceof String) || ((String) result).isBlank()) {
@@ -211,6 +285,19 @@ public class ResultServlet extends AbstractApiServlet {
             // DELETE /api/v1/results/{id}
             if (segments.size() == 1 && segments.get(0).matches("\\d+")) {
                 Long id = parseLongStrict(segments.get(0));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var rOpt = resultDAO.findById(id);
+                    if (rOpt.isEmpty()) {
+                        sendError(resp, HttpServletResponse.SC_NOT_FOUND, "RESULT_NOT_FOUND", "Результат не найден");
+                        return;
+                    }
+                    var fOpt = functionDAO.findById(rOpt.get().getFunctionId());
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 handleDeleteById(id, resp);
                 return;
             }
@@ -218,6 +305,14 @@ public class ResultServlet extends AbstractApiServlet {
             // DELETE /api/v1/results/function/{resultId}
             if (segments.size() == 2 && "function".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+")) {
                 Long resultId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(resultId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 int deleted = resultDAO.deleteByFunctionId(resultId);
                 sendSuccess(resp, HttpServletResponse.SC_OK, Map.of("deleted", deleted), "Удалено результатов: " + deleted);
                 return;
@@ -226,6 +321,14 @@ public class ResultServlet extends AbstractApiServlet {
             // DELETE /api/v1/results/function/{resultId}/latest
             if (segments.size() == 3 && "function".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+") && "latest".equalsIgnoreCase(segments.get(2))) {
                 Long resultId = parseLongStrict(segments.get(1));
+                AuthContext ctx = auth(req);
+                if (ctx != null && !ctx.isAdmin()) {
+                    var fOpt = functionDAO.findById(resultId);
+                    if (fOpt.isEmpty() || !ctx.getUserId().equals(fOpt.get().getUserId())) {
+                        sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Доступ только к своим данным");
+                        return;
+                    }
+                }
                 boolean deleted = resultDAO.deleteLastByFunctionId(resultId);
                 if (!deleted) {
                     sendError(resp, HttpServletResponse.SC_NOT_FOUND, "RESULT_NOT_FOUND", "Результат не найден");
@@ -237,6 +340,10 @@ public class ResultServlet extends AbstractApiServlet {
 
             // DELETE /api/v1/results/function/{resultId}/search?resultLike=...
             if (segments.size() == 3 && "function".equalsIgnoreCase(segments.get(0)) && segments.get(1).matches("\\d+") && "search".equalsIgnoreCase(segments.get(2))) {
+                if (!isAdmin(req)) {
+                    sendError(resp, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
+                    return;
+                }
                 Long resultId = parseLongStrict(segments.get(1));
                 String like = req.getParameter("resultLike");
                 if (like == null) {

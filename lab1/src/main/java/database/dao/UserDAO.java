@@ -17,17 +17,21 @@ public class UserDAO {
     private static final Logger logger = LogManager.getLogger(UserDAO.class);
     
     // SQL запросы из 05_crud_users.sql
-    private static final String SELECT_ALL = "SELECT id, login, email FROM users";
-    private static final String SELECT_BY_ID = "SELECT id, login, email FROM users WHERE id = ?";
-    private static final String SELECT_BY_LOGIN = "SELECT id, login, email FROM users WHERE login = ?";
-    private static final String SELECT_BY_EMAIL = "SELECT id, login, email FROM users WHERE email = ?";
-    private static final String SELECT_BY_LOGIN_LIKE = "SELECT id, login, email FROM users WHERE login LIKE ?";
-    private static final String INSERT_WITH_EMAIL = "INSERT INTO users (login, password, email) VALUES (?, ?, ?)";
-    private static final String INSERT_WITHOUT_EMAIL = "INSERT INTO users (login, password) VALUES (?, ?)";
+    private static final String SELECT_ALL = "SELECT id, login, email, role FROM users";
+    private static final String SELECT_BY_ID = "SELECT id, login, email, role FROM users WHERE id = ?";
+    private static final String SELECT_BY_LOGIN = "SELECT id, login, email, role FROM users WHERE login = ?";
+    private static final String SELECT_BY_EMAIL = "SELECT id, login, email, role FROM users WHERE email = ?";
+    private static final String SELECT_BY_LOGIN_LIKE = "SELECT id, login, email, role FROM users WHERE login LIKE ?";
+
+    private static final String SELECT_AUTH_BY_LOGIN = "SELECT id, login, password, role FROM users WHERE login = ?";
+
+    private static final String INSERT_WITH_EMAIL = "INSERT INTO users (login, password, email, role) VALUES (?, ?, ?, ?)";
+    private static final String INSERT_WITHOUT_EMAIL = "INSERT INTO users (login, password, role) VALUES (?, ?, ?)";
     private static final String UPDATE_PASSWORD = "UPDATE users SET password = ? WHERE id = ?";
     private static final String UPDATE_EMAIL = "UPDATE users SET email = ? WHERE id = ?";
     private static final String UPDATE_LOGIN = "UPDATE users SET login = ? WHERE id = ?";
     private static final String UPDATE_ALL = "UPDATE users SET login = ?, password = ?, email = ? WHERE id = ?";
+    private static final String UPDATE_ROLE = "UPDATE users SET role = ? WHERE id = ?";
     private static final String DELETE_BY_ID = "DELETE FROM users WHERE id = ?";
     private static final String DELETE_BY_LOGIN = "DELETE FROM users WHERE login = ?";
     
@@ -45,7 +49,8 @@ public class UserDAO {
                 users.add(new User(
                     rs.getLong("id"),
                     rs.getString("login"),
-                    rs.getString("email")
+                    rs.getString("email"),
+                    rs.getString("role")
                 ));
             }
             logger.info("Найдено пользователей: {}", users.size());
@@ -68,7 +73,7 @@ public class UserDAO {
             ResultSet rs = statement.executeQuery();
             
             if (rs.next()) {
-                User user = new User(rs.getLong("id"), rs.getString("login"), rs.getString("email"));
+                User user = new User(rs.getLong("id"), rs.getString("login"), rs.getString("email"), rs.getString("role"));
                 logger.debug("Пользователь найден: {}", user);
                 return Optional.of(user);
             }
@@ -92,7 +97,7 @@ public class UserDAO {
             ResultSet rs = statement.executeQuery();
             
             if (rs.next()) {
-                User user = new User(rs.getLong("id"), rs.getString("login"), rs.getString("email"));
+                User user = new User(rs.getLong("id"), rs.getString("login"), rs.getString("email"), rs.getString("role"));
                 logger.debug("Пользователь найден: {}", user);
                 return Optional.of(user);
             }
@@ -116,7 +121,7 @@ public class UserDAO {
             ResultSet rs = statement.executeQuery();
             
             if (rs.next()) {
-                User user = new User(rs.getLong("id"), rs.getString("login"), rs.getString("email"));
+                User user = new User(rs.getLong("id"), rs.getString("login"), rs.getString("email"), rs.getString("role"));
                 logger.debug("Пользователь найден: {}", user);
                 return Optional.of(user);
             }
@@ -141,7 +146,7 @@ public class UserDAO {
             ResultSet rs = statement.executeQuery();
             
             while (rs.next()) {
-                users.add(new User(rs.getLong("id"), rs.getString("login"), rs.getString("email")));
+                users.add(new User(rs.getLong("id"), rs.getString("login"), rs.getString("email"), rs.getString("role")));
             }
             logger.info("Найдено пользователей по паттерну {}: {}", pattern, users.size());
             return users;
@@ -156,13 +161,18 @@ public class UserDAO {
      * @return ID созданного пользователя
      */
     public Long insert(String login, String password, String email) throws SQLException {
-        logger.info("Вставка нового пользователя: login={}, email={}", login, email);
+        return insert(login, password, email, "USER");
+    }
+
+    public Long insert(String login, String password, String email, String role) throws SQLException {
+        logger.info("Вставка нового пользователя: login={}, email={}, role={}", login, email, role);
         try (Connection connection = ConnectionManager.getConnection();
              PreparedStatement statement = connection.prepareStatement(INSERT_WITH_EMAIL, Statement.RETURN_GENERATED_KEYS)) {
             
             statement.setString(1, login);
             statement.setString(2, password);
             statement.setString(3, email);
+            statement.setString(4, role);
             
             int rowsAffected = statement.executeUpdate();
             if (rowsAffected > 0) {
@@ -185,12 +195,17 @@ public class UserDAO {
      * @return ID созданного пользователя
      */
     public Long insert(String login, String password) throws SQLException {
-        logger.info("Вставка нового пользователя без email: login={}", login);
+        return insert(login, password, "USER");
+    }
+
+    public Long insert(String login, String password, String role) throws SQLException {
+        logger.info("Вставка нового пользователя без email: login={} role={}", login, role);
         try (Connection connection = ConnectionManager.getConnection();
              PreparedStatement statement = connection.prepareStatement(INSERT_WITHOUT_EMAIL, Statement.RETURN_GENERATED_KEYS)) {
             
             statement.setString(1, login);
             statement.setString(2, password);
+            statement.setString(3, role);
             
             int rowsAffected = statement.executeUpdate();
             if (rowsAffected > 0) {
@@ -333,27 +348,90 @@ public class UserDAO {
     }
     
     /**
+     * Обновляет роль пользователя (ADMIN/USER)
+     */
+    public boolean updateRole(Long id, String role) throws SQLException {
+        logger.info("Обновление роли пользователя с ID: {} role={}", id, role);
+        try (Connection connection = ConnectionManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(UPDATE_ROLE)) {
+            statement.setString(1, role);
+            statement.setLong(2, id);
+            int rowsAffected = statement.executeUpdate();
+            boolean updated = rowsAffected > 0;
+            logger.info("Роль обновлена: {}, затронуто строк: {}", updated, rowsAffected);
+            return updated;
+        } catch (SQLException e) {
+            logger.error("Ошибка при обновлении роли: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * Аутентификация по login/password для Basic Auth.
+     */
+    public Optional<AuthUser> authenticate(String login, String password) throws SQLException {
+        logger.debug("Аутентификация пользователя login={}", login);
+        try (Connection connection = ConnectionManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(SELECT_AUTH_BY_LOGIN)) {
+            statement.setString(1, login);
+            ResultSet rs = statement.executeQuery();
+            if (!rs.next()) {
+                return Optional.empty();
+            }
+            String stored = rs.getString("password");
+            if (stored == null || !stored.equals(password)) {
+                return Optional.empty();
+            }
+            Long id = rs.getLong("id");
+            String role = rs.getString("role");
+            return Optional.of(new AuthUser(id, login, role));
+        }
+    }
+
+    /**
      * Класс для представления пользователя
      */
     public static class User {
         private final Long id;
         private final String login;
         private final String email;
+        private final String role;
         
-        public User(Long id, String login, String email) {
+        public User(Long id, String login, String email, String role) {
             this.id = id;
             this.login = login;
             this.email = email;
+            this.role = role;
         }
         
         public Long getId() { return id; }
         public String getLogin() { return login; }
         public String getEmail() { return email; }
+        public String getRole() { return role; }
         
         @Override
         public String toString() {
-            return "User{id=" + id + ", login='" + login + "', email='" + email + "'}";
+            return "User{id=" + id + ", login='" + login + "', email='" + email + "', role='" + role + "'}";
         }
+    }
+
+    /**
+     * Минимальный объект аутентифицированного пользователя.
+     */
+    public static class AuthUser {
+        private final Long id;
+        private final String login;
+        private final String role;
+
+        public AuthUser(Long id, String login, String role) {
+            this.id = id;
+            this.login = login;
+            this.role = role;
+        }
+
+        public Long getId() { return id; }
+        public String getLogin() { return login; }
+        public String getRole() { return role; }
     }
 }
 
