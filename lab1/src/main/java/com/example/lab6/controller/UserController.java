@@ -7,8 +7,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import repository.UserRepository;
+import com.example.lab6.security.AuthUtil;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -36,9 +38,14 @@ public class UserController {
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false, defaultValue = "asc") String order,
             @RequestParam(required = false) Integer limit,
-            @RequestParam(required = false) Integer offset) {
+            @RequestParam(required = false) Integer offset,
+            Authentication auth) {
         logger.info("GET /api/v1/users - получение всех пользователей (sortBy={}, order={}, limit={}, offset={})", 
                 sortBy, order, limit, offset);
+        if (!AuthUtil.isAdmin(auth)) {
+            logger.warn("FORBIDDEN users list: login={}", auth == null ? null : auth.getName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<User> users = userRepository.findAll();
             List<UserDTO> dtos = users.stream()
@@ -77,9 +84,16 @@ public class UserController {
      * Получить пользователя по ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> getUserById(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getUserById(@PathVariable Long id, Authentication auth) {
         logger.info("GET /api/v1/users/{} - получение пользователя по ID", id);
         try {
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty() || !id.equals(meOpt.get().getId())) {
+                    logger.warn("FORBIDDEN user read id={} login={}", id, auth == null ? null : auth.getName());
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
             Optional<User> userOpt = userRepository.findById(id);
             if (userOpt.isPresent()) {
                 UserDTO dto = UserMapper.toDTOSafe(userOpt.get());
@@ -101,9 +115,15 @@ public class UserController {
      * Создать пользователя
      */
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createUser(@RequestBody UserDTO userDTO) {
+    public ResponseEntity<Map<String, Object>> createUser(@RequestBody UserDTO userDTO, Authentication auth) {
         logger.info("POST /api/v1/users - создание пользователя: {}", userDTO.getLogin());
         try {
+            // Роль может задавать только ADMIN, иначе всегда USER
+            if (!AuthUtil.isAdmin(auth)) {
+                userDTO.setRole("USER");
+            } else if (userDTO.getRole() == null || userDTO.getRole().isBlank()) {
+                userDTO.setRole("USER");
+            }
             User user = UserMapper.toEntity(userDTO);
             User savedUser = userRepository.save(user);
             UserDTO savedDTO = UserMapper.toDTOSafe(savedUser);
@@ -123,15 +143,23 @@ public class UserController {
      * Обновить пользователя
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateUser(@PathVariable Long id, @RequestBody UserDTO userDTO) {
+    public ResponseEntity<Map<String, Object>> updateUser(@PathVariable Long id, @RequestBody UserDTO userDTO, Authentication auth) {
         logger.info("PUT /api/v1/users/{} - обновление пользователя", id);
         try {
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty() || !id.equals(meOpt.get().getId())) {
+                    logger.warn("FORBIDDEN user update id={} login={}", id, auth == null ? null : auth.getName());
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
             Optional<User> userOpt = userRepository.findById(id);
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
                 user.setLogin(userDTO.getLogin());
                 user.setPassword(userDTO.getPassword());
                 user.setEmail(userDTO.getEmail());
+                // роль не меняем через PUT
                 User updatedUser = userRepository.save(user);
                 UserDTO updatedDTO = UserMapper.toDTOSafe(updatedUser);
                 Map<String, Object> response = new HashMap<>();
@@ -158,9 +186,14 @@ public class UserController {
     public ResponseEntity<Map<String, Object>> searchUser(
             @RequestParam(required = false) String login,
             @RequestParam(required = false) String email,
-            @RequestParam(required = false) String loginLike) {
+            @RequestParam(required = false) String loginLike,
+            Authentication auth) {
         logger.info("GET /api/v1/users/search - поиск пользователя (login={}, email={}, loginLike={})", 
                 login, email, loginLike);
+        if (!AuthUtil.isAdmin(auth)) {
+            logger.warn("FORBIDDEN users search: login={}", auth == null ? null : auth.getName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             Optional<User> userOpt = Optional.empty();
             
@@ -202,9 +235,16 @@ public class UserController {
      * Удалить пользователя по ID
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteUser(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> deleteUser(@PathVariable Long id, Authentication auth) {
         logger.info("DELETE /api/v1/users/{} - удаление пользователя", id);
         try {
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty() || !id.equals(meOpt.get().getId())) {
+                    logger.warn("FORBIDDEN user delete id={} login={}", id, auth == null ? null : auth.getName());
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
             Optional<User> userOpt = userRepository.findById(id);
             if (userOpt.isPresent()) {
                 userRepository.deleteById(id);
@@ -228,8 +268,12 @@ public class UserController {
      * DELETE /api/v1/users?login={login}
      */
     @DeleteMapping
-    public ResponseEntity<Map<String, Object>> deleteUserByLogin(@RequestParam String login) {
+    public ResponseEntity<Map<String, Object>> deleteUserByLogin(@RequestParam String login, Authentication auth) {
         logger.info("DELETE /api/v1/users?login={} - удаление пользователя по login", login);
+        if (!AuthUtil.isAdmin(auth)) {
+            logger.warn("FORBIDDEN user delete by login target={} requester={}", login, auth == null ? null : auth.getName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             Optional<User> userOpt = userRepository.findByLogin(login);
             if (userOpt.isPresent()) {
@@ -256,9 +300,17 @@ public class UserController {
     @PatchMapping("/{id}/password")
     public ResponseEntity<Map<String, Object>> updatePassword(
             @PathVariable Long id,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            Authentication auth) {
         logger.info("PATCH /api/v1/users/{}/password - обновление пароля", id);
         try {
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty() || !id.equals(meOpt.get().getId())) {
+                    logger.warn("FORBIDDEN user password update id={} login={}", id, auth == null ? null : auth.getName());
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
             Optional<User> userOpt = userRepository.findById(id);
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
@@ -291,9 +343,17 @@ public class UserController {
     @PatchMapping("/{id}/email")
     public ResponseEntity<Map<String, Object>> updateEmail(
             @PathVariable Long id,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            Authentication auth) {
         logger.info("PATCH /api/v1/users/{}/email - обновление email", id);
         try {
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty() || !id.equals(meOpt.get().getId())) {
+                    logger.warn("FORBIDDEN user email update id={} login={}", id, auth == null ? null : auth.getName());
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
             Optional<User> userOpt = userRepository.findById(id);
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
@@ -328,9 +388,17 @@ public class UserController {
     @PatchMapping("/{id}/login")
     public ResponseEntity<Map<String, Object>> updateLogin(
             @PathVariable Long id,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            Authentication auth) {
         logger.info("PATCH /api/v1/users/{}/login - обновление login", id);
         try {
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty() || !id.equals(meOpt.get().getId())) {
+                    logger.warn("FORBIDDEN user login update id={} login={}", id, auth == null ? null : auth.getName());
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
             Optional<User> userOpt = userRepository.findById(id);
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
@@ -355,6 +423,49 @@ public class UserController {
         } catch (Exception e) {
             logger.error("Ошибка при обновлении login пользователя с ID: {}", id, e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
+     * Обновить роль пользователя (ADMIN/USER)
+     * PATCH /api/v1/users/{id}/role
+     */
+    @PatchMapping("/{id}/role")
+    public ResponseEntity<Map<String, Object>> updateRole(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> request,
+            Authentication auth) {
+        logger.info("PATCH /api/v1/users/{}/role - обновление роли", id);
+        if (!AuthUtil.isAdmin(auth)) {
+            logger.warn("FORBIDDEN user role update id={} login={}", id, auth == null ? null : auth.getName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        try {
+            String role = request.get("role");
+            if (role == null || role.isBlank()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            }
+            String r = role.trim().toUpperCase();
+            if (!("ADMIN".equals(r) || "USER".equals(r))) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            }
+            Optional<User> userOpt = userRepository.findById(id);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            User u = userOpt.get();
+            u.setRole(r);
+            userRepository.save(u);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", UserMapper.toDTOSafe(u));
+            response.put("message", "Роль успешно обновлена");
+            logger.info("Роль пользователя {} обновлена на {}", id, r);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Ошибка при обновлении роли пользователя {}", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 

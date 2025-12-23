@@ -8,7 +8,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import com.example.lab6.security.AuthUtil;
 import repository.FunctionRepository;
 import repository.UserRepository;
 
@@ -40,11 +42,21 @@ public class FunctionController {
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false, defaultValue = "asc") String order,
             @RequestParam(required = false) Integer limit,
-            @RequestParam(required = false) Integer offset) {
+            @RequestParam(required = false) Integer offset,
+            Authentication auth) {
         logger.info("GET /api/v1/functions - получение всех функций (sortBy={}, order={}, limit={}, offset={})", 
                 sortBy, order, limit, offset);
         try {
-            List<Function> functions = functionRepository.findAll();
+            List<Function> functions;
+            if (AuthUtil.isAdmin(auth)) {
+                functions = functionRepository.findAll();
+            } else {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty()) {
+                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                }
+                functions = functionRepository.findByUser(meOpt.get());
+            }
             List<FunctionDTO> dtos = functions.stream()
                     .map(FunctionMapper::toDTO)
                     .collect(Collectors.toList());
@@ -81,11 +93,19 @@ public class FunctionController {
      * Получить функцию по ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> getFunctionById(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getFunctionById(@PathVariable Long id, Authentication auth) {
         logger.info("GET /api/v1/functions/{} - получение функции по ID", id);
         try {
             Optional<Function> functionOpt = functionRepository.findById(id);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    var meOpt = AuthUtil.currentUser(auth, userRepository);
+                    if (meOpt.isEmpty() || functionOpt.get().getUser() == null ||
+                            !meOpt.get().getId().equals(functionOpt.get().getUser().getId())) {
+                        logger.warn("FORBIDDEN function read id={} login={}", id, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 FunctionDTO dto = FunctionMapper.toDTO(functionOpt.get());
                 Map<String, Object> response = new HashMap<>();
                 response.put("success", true);
@@ -106,9 +126,16 @@ public class FunctionController {
      * GET /api/v1/functions/user/{userId}
      */
     @GetMapping("/user/{userId}")
-    public ResponseEntity<Map<String, Object>> getFunctionsByUserId(@PathVariable Long userId) {
+    public ResponseEntity<Map<String, Object>> getFunctionsByUserId(@PathVariable Long userId, Authentication auth) {
         logger.info("GET /api/v1/functions/user/{} - получение функций пользователя", userId);
         try {
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty() || !userId.equals(meOpt.get().getId())) {
+                    logger.warn("FORBIDDEN functions by userId={} login={}", userId, auth == null ? null : auth.getName());
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
             Optional<User> userOpt = userRepository.findById(userId);
             if (userOpt.isPresent()) {
                 List<Function> functions = functionRepository.findByUser(userOpt.get());
@@ -135,9 +162,16 @@ public class FunctionController {
      * GET /api/v1/functions/user/{userId}/count
      */
     @GetMapping("/user/{userId}/count")
-    public ResponseEntity<Map<String, Object>> getFunctionCountByUserId(@PathVariable Long userId) {
+    public ResponseEntity<Map<String, Object>> getFunctionCountByUserId(@PathVariable Long userId, Authentication auth) {
         logger.info("GET /api/v1/functions/user/{}/count - подсчет функций пользователя", userId);
         try {
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty() || !userId.equals(meOpt.get().getId())) {
+                    logger.warn("FORBIDDEN function count userId={} login={}", userId, auth == null ? null : auth.getName());
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
             Optional<User> userOpt = userRepository.findById(userId);
             if (userOpt.isPresent()) {
                 List<Function> functions = functionRepository.findByUser(userOpt.get());
@@ -167,17 +201,24 @@ public class FunctionController {
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String nameLike,
-            @RequestParam(required = false) Long userId) {
+            @RequestParam(required = false) Long userId,
+            Authentication auth) {
         logger.info("GET /api/v1/functions/search - поиск функций (type={}, name={}, nameLike={}, userId={})", 
                 type, name, nameLike, userId);
         try {
+            Long enforcedUserId = userId;
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                enforcedUserId = meOpt.get().getId();
+            }
             List<Function> allFunctions = functionRepository.findAll();
             List<FunctionDTO> results = allFunctions.stream()
                     .filter(f -> {
                         if (type != null && !type.equals(f.getType())) return false;
                         if (name != null && !name.equals(f.getName())) return false;
                         if (nameLike != null && (f.getName() == null || !f.getName().toLowerCase().contains(nameLike.toLowerCase()))) return false;
-                        if (userId != null && (f.getUser() == null || !userId.equals(f.getUser().getId()))) return false;
+                        if (enforcedUserId != null && (f.getUser() == null || !enforcedUserId.equals(f.getUser().getId()))) return false;
                         return true;
                     })
                     .map(FunctionMapper::toDTO)
@@ -198,9 +239,14 @@ public class FunctionController {
      * Создать функцию
      */
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createFunction(@RequestBody FunctionDTO functionDTO) {
+    public ResponseEntity<Map<String, Object>> createFunction(@RequestBody FunctionDTO functionDTO, Authentication auth) {
         logger.info("POST /api/v1/functions - создание функции: {}", functionDTO.getName());
         try {
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                functionDTO.setUserId(meOpt.get().getId());
+            }
             Optional<User> userOpt = userRepository.findById(functionDTO.getUserId());
             if (userOpt.isPresent()) {
                 Function function = FunctionMapper.toEntity(functionDTO, userOpt.get());
@@ -226,11 +272,19 @@ public class FunctionController {
      * Обновить функцию
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateFunction(@PathVariable Long id, @RequestBody FunctionDTO functionDTO) {
+    public ResponseEntity<Map<String, Object>> updateFunction(@PathVariable Long id, @RequestBody FunctionDTO functionDTO, Authentication auth) {
         logger.info("PUT /api/v1/functions/{} - обновление функции", id);
         try {
             Optional<Function> functionOpt = functionRepository.findById(id);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    var meOpt = AuthUtil.currentUser(auth, userRepository);
+                    if (meOpt.isEmpty() || functionOpt.get().getUser() == null ||
+                            !meOpt.get().getId().equals(functionOpt.get().getUser().getId())) {
+                        logger.warn("FORBIDDEN function update id={} login={}", id, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 Function function = functionOpt.get();
                 function.setName(functionDTO.getName());
                 function.setType(functionDTO.getType());
@@ -259,11 +313,20 @@ public class FunctionController {
     @PatchMapping("/{id}/name")
     public ResponseEntity<Map<String, Object>> updateFunctionName(
             @PathVariable Long id,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            Authentication auth) {
         logger.info("PATCH /api/v1/functions/{}/name - обновление имени функции", id);
         try {
             Optional<Function> functionOpt = functionRepository.findById(id);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    var meOpt = AuthUtil.currentUser(auth, userRepository);
+                    if (meOpt.isEmpty() || functionOpt.get().getUser() == null ||
+                            !meOpt.get().getId().equals(functionOpt.get().getUser().getId())) {
+                        logger.warn("FORBIDDEN function name patch id={} login={}", id, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 Function function = functionOpt.get();
                 String newName = request.get("name");
                 if (newName == null || newName.isEmpty()) {
@@ -296,11 +359,20 @@ public class FunctionController {
     @PatchMapping("/{id}/type")
     public ResponseEntity<Map<String, Object>> updateFunctionType(
             @PathVariable Long id,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            Authentication auth) {
         logger.info("PATCH /api/v1/functions/{}/type - обновление типа функции", id);
         try {
             Optional<Function> functionOpt = functionRepository.findById(id);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    var meOpt = AuthUtil.currentUser(auth, userRepository);
+                    if (meOpt.isEmpty() || functionOpt.get().getUser() == null ||
+                            !meOpt.get().getId().equals(functionOpt.get().getUser().getId())) {
+                        logger.warn("FORBIDDEN function type patch id={} login={}", id, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 Function function = functionOpt.get();
                 String newType = request.get("type");
                 if (newType == null || newType.isEmpty()) {
@@ -333,9 +405,17 @@ public class FunctionController {
     @PatchMapping("/user/{userId}/type")
     public ResponseEntity<Map<String, Object>> updateAllFunctionsTypeByUserId(
             @PathVariable Long userId,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            Authentication auth) {
         logger.info("PATCH /api/v1/functions/user/{}/type - обновление типа всех функций пользователя", userId);
         try {
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty() || !userId.equals(meOpt.get().getId())) {
+                    logger.warn("FORBIDDEN functions bulk type userId={} login={}", userId, auth == null ? null : auth.getName());
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
             Optional<User> userOpt = userRepository.findById(userId);
             if (userOpt.isPresent()) {
                 String newType = request.get("type");
@@ -372,11 +452,19 @@ public class FunctionController {
      * Удалить функцию по ID
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteFunction(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> deleteFunction(@PathVariable Long id, Authentication auth) {
         logger.info("DELETE /api/v1/functions/{} - удаление функции", id);
         try {
             Optional<Function> functionOpt = functionRepository.findById(id);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    var meOpt = AuthUtil.currentUser(auth, userRepository);
+                    if (meOpt.isEmpty() || functionOpt.get().getUser() == null ||
+                            !meOpt.get().getId().equals(functionOpt.get().getUser().getId())) {
+                        logger.warn("FORBIDDEN function delete id={} login={}", id, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 functionRepository.deleteById(id);
                 Map<String, Object> response = new HashMap<>();
                 response.put("success", true);
@@ -398,9 +486,16 @@ public class FunctionController {
      * DELETE /api/v1/functions/user/{userId}
      */
     @DeleteMapping("/user/{userId}")
-    public ResponseEntity<Map<String, Object>> deleteFunctionsByUserId(@PathVariable Long userId) {
+    public ResponseEntity<Map<String, Object>> deleteFunctionsByUserId(@PathVariable Long userId, Authentication auth) {
         logger.info("DELETE /api/v1/functions/user/{} - удаление всех функций пользователя", userId);
         try {
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty() || !userId.equals(meOpt.get().getId())) {
+                    logger.warn("FORBIDDEN functions delete by userId={} login={}", userId, auth == null ? null : auth.getName());
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
             Optional<User> userOpt = userRepository.findById(userId);
             if (userOpt.isPresent()) {
                 List<Function> functions = functionRepository.findByUser(userOpt.get());
@@ -429,12 +524,19 @@ public class FunctionController {
      * DELETE /api/v1/functions?type={type}
      */
     @DeleteMapping
-    public ResponseEntity<Map<String, Object>> deleteFunctionsByType(@RequestParam String type) {
+    public ResponseEntity<Map<String, Object>> deleteFunctionsByType(@RequestParam String type, Authentication auth) {
         logger.info("DELETE /api/v1/functions?type={} - удаление функций по типу", type);
         try {
             List<Function> allFunctions = functionRepository.findAll();
+            Long enforcedUserId = null;
+            if (!AuthUtil.isAdmin(auth)) {
+                var meOpt = AuthUtil.currentUser(auth, userRepository);
+                if (meOpt.isEmpty()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                enforcedUserId = meOpt.get().getId();
+            }
             List<Function> toDelete = allFunctions.stream()
                     .filter(f -> type.equals(f.getType()))
+                    .filter(f -> enforcedUserId == null || (f.getUser() != null && enforcedUserId.equals(f.getUser().getId())))
                     .collect(Collectors.toList());
             
             int deleted = 0;

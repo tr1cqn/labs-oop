@@ -23,6 +23,9 @@ public class User {
     
     @Column(name = "email", length = 255)
     private String email;
+
+    @Column(name = "role", nullable = false, length = 20)
+    private String role = "USER";
     
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Function> functions = new ArrayList<>();
@@ -35,6 +38,7 @@ public class User {
         this.login = login;
         this.password = password;
         this.email = email;
+        this.role = "USER";
     }
     
     // Getters and Setters
@@ -69,6 +73,18 @@ public class User {
     public void setEmail(String email) {
         this.email = email;
     }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        if (role == null || role.isBlank()) {
+            this.role = "USER";
+        } else {
+            this.role = role.trim().toUpperCase();
+        }
+    }
     
     public List<Function> getFunctions() {
         return functions;
@@ -95,6 +111,7 @@ public class User {
                 "id=" + id +
                 ", login='" + login + '\'' +
                 ", email='" + email + '\'' +
+                ", role='" + role + '\'' +
                 '}';
     }
 }

@@ -16,11 +16,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import repository.FunctionRepository;
 import repository.PointRepository;
 import repository.ResultRepository;
 import repository.UserRepository;
+import com.example.lab6.security.AuthUtil;
 import search.DataSearchService;
 import search.HierarchicalDataBuilder;
 import search.HierarchicalDataNode;
@@ -64,8 +66,12 @@ public class SearchController {
      * POST /api/v1/search/dfs
      */
     @PostMapping("/dfs")
-    public ResponseEntity<Map<String, Object>> searchDFS(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> searchDFS(@RequestBody Map<String, Object> request, Authentication auth) {
         logger.info("POST /api/v1/search/dfs - поиск в глубину");
+        if (!AuthUtil.isAdmin(auth)) {
+            logger.warn("FORBIDDEN search dfs login={}", auth == null ? null : auth.getName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         long startTime = System.currentTimeMillis();
         try {
             SearchCriteria criteria = buildSearchCriteria(request);
@@ -98,8 +104,12 @@ public class SearchController {
      * POST /api/v1/search/bfs
      */
     @PostMapping("/bfs")
-    public ResponseEntity<Map<String, Object>> searchBFS(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> searchBFS(@RequestBody Map<String, Object> request, Authentication auth) {
         logger.info("POST /api/v1/search/bfs - поиск в ширину");
+        if (!AuthUtil.isAdmin(auth)) {
+            logger.warn("FORBIDDEN search bfs login={}", auth == null ? null : auth.getName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         long startTime = System.currentTimeMillis();
         try {
             SearchCriteria criteria = buildSearchCriteria(request);
@@ -132,8 +142,12 @@ public class SearchController {
      * POST /api/v1/search/hierarchical
      */
     @PostMapping("/hierarchical")
-    public ResponseEntity<Map<String, Object>> searchHierarchical(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> searchHierarchical(@RequestBody Map<String, Object> request, Authentication auth) {
         logger.info("POST /api/v1/search/hierarchical - поиск по иерархии");
+        if (!AuthUtil.isAdmin(auth)) {
+            logger.warn("FORBIDDEN search hierarchical login={}", auth == null ? null : auth.getName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         long startTime = System.currentTimeMillis();
         try {
             SearchCriteria criteria = buildSearchCriteria(request);
@@ -166,8 +180,12 @@ public class SearchController {
      * POST /api/v1/search/single
      */
     @PostMapping("/single")
-    public ResponseEntity<Map<String, Object>> searchSingle(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> searchSingle(@RequestBody Map<String, Object> request, Authentication auth) {
         logger.info("POST /api/v1/search/single - одиночный поиск");
+        if (!AuthUtil.isAdmin(auth)) {
+            logger.warn("FORBIDDEN search single login={}", auth == null ? null : auth.getName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         long startTime = System.currentTimeMillis();
         try {
             String entityType = (String) request.get("entityType");
@@ -201,8 +219,12 @@ public class SearchController {
      * POST /api/v1/search/multiple
      */
     @PostMapping("/multiple")
-    public ResponseEntity<Map<String, Object>> searchMultiple(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> searchMultiple(@RequestBody Map<String, Object> request, Authentication auth) {
         logger.info("POST /api/v1/search/multiple - множественный поиск");
+        if (!AuthUtil.isAdmin(auth)) {
+            logger.warn("FORBIDDEN search multiple login={}", auth == null ? null : auth.getName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         long startTime = System.currentTimeMillis();
         try {
             String entityType = (String) request.get("entityType");

@@ -8,6 +8,7 @@ public class UserDTO {
     private String login;
     private String password;
     private String email;
+    private String role;
 
     // Конструкторы
     public UserDTO() {
@@ -18,6 +19,14 @@ public class UserDTO {
         this.login = login;
         this.password = password;
         this.email = email;
+    }
+
+    public UserDTO(Long id, String login, String password, String email, String role) {
+        this.id = id;
+        this.login = login;
+        this.password = password;
+        this.email = email;
+        this.role = role;
     }
 
     // Getters and Setters
@@ -53,12 +62,21 @@ public class UserDTO {
         this.email = email;
     }
 
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
     @Override
     public String toString() {
         return "UserDTO{" +
                 "id=" + id +
                 ", login='" + login + '\'' +
                 ", email='" + email + '\'' +
+                ", role='" + role + '\'' +
                 '}';
     }
 }

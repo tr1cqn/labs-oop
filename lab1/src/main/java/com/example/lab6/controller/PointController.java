@@ -8,7 +8,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import com.example.lab6.security.AuthUtil;
 import repository.FunctionRepository;
 import repository.PointRepository;
 
@@ -34,8 +36,12 @@ public class PointController {
      * Получить все точки
      */
     @GetMapping
-    public ResponseEntity<List<PointDTO>> getAllPoints() {
+    public ResponseEntity<List<PointDTO>> getAllPoints(Authentication auth) {
         logger.info("GET /api/v1/points - получение всех точек");
+        if (!AuthUtil.isAdmin(auth)) {
+            logger.warn("FORBIDDEN points list login={}", auth == null ? null : auth.getName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<Point> points = pointRepository.findAll();
             List<PointDTO> dtos = points.stream()
@@ -53,11 +59,24 @@ public class PointController {
      * Получить точку по ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<PointDTO> getPointById(@PathVariable Long id) {
+    public ResponseEntity<PointDTO> getPointById(@PathVariable Long id, Authentication auth) {
         logger.info("GET /api/v1/points/{} - получение точки по ID", id);
         try {
             Optional<Point> pointOpt = pointRepository.findById(id);
             if (pointOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Point p = pointOpt.get();
+                    Long funcId = p.getFunction() != null ? p.getFunction().getId() : null;
+                    if (funcId == null) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                    var fOpt = functionRepository.findById(funcId);
+                    if (fOpt.isEmpty() || fOpt.get().getUser() == null ||
+                            !auth.getName().equals(fOpt.get().getUser().getLogin())) {
+                        logger.warn("FORBIDDEN point read id={} login={}", id, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 PointDTO dto = PointMapper.toDTO(pointOpt.get());
                 return ResponseEntity.ok(dto);
             } else {
@@ -74,11 +93,18 @@ public class PointController {
      * Получить точки функции
      */
     @GetMapping("/function/{funcId}")
-    public ResponseEntity<List<PointDTO>> getPointsByFunctionId(@PathVariable Long funcId) {
+    public ResponseEntity<List<PointDTO>> getPointsByFunctionId(@PathVariable Long funcId, Authentication auth) {
         logger.info("GET /api/v1/points/function/{} - получение точек функции", funcId);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN points by functionId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 List<PointDTO> dtos = points.stream()
                         .map(PointMapper::toDTO)
@@ -99,11 +125,18 @@ public class PointController {
      * Создать точку
      */
     @PostMapping
-    public ResponseEntity<PointDTO> createPoint(@RequestBody PointDTO pointDTO) {
+    public ResponseEntity<PointDTO> createPoint(@RequestBody PointDTO pointDTO, Authentication auth) {
         logger.info("POST /api/v1/points - создание точки для функции {}", pointDTO.getFuncId());
         try {
             Optional<Function> functionOpt = functionRepository.findById(pointDTO.getFuncId());
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN point create funcId={} login={}", pointDTO.getFuncId(), auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 Point point = PointMapper.toEntity(pointDTO, functionOpt.get());
                 Point savedPoint = pointRepository.save(point);
                 PointDTO savedDTO = PointMapper.toDTO(savedPoint);
@@ -123,11 +156,22 @@ public class PointController {
      * Обновить точку
      */
     @PutMapping("/{id}")
-    public ResponseEntity<PointDTO> updatePoint(@PathVariable Long id, @RequestBody PointDTO pointDTO) {
+    public ResponseEntity<PointDTO> updatePoint(@PathVariable Long id, @RequestBody PointDTO pointDTO, Authentication auth) {
         logger.info("PUT /api/v1/points/{} - обновление точки", id);
         try {
             Optional<Point> pointOpt = pointRepository.findById(id);
             if (pointOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Point p = pointOpt.get();
+                    Long funcId = p.getFunction() != null ? p.getFunction().getId() : null;
+                    if (funcId == null) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    var fOpt = functionRepository.findById(funcId);
+                    if (fOpt.isEmpty() || fOpt.get().getUser() == null ||
+                            !auth.getName().equals(fOpt.get().getUser().getLogin())) {
+                        logger.warn("FORBIDDEN point update id={} login={}", id, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 Point point = pointOpt.get();
                 point.setXValue(pointDTO.getXValue());
                 point.setYValue(pointDTO.getYValue());
@@ -151,11 +195,18 @@ public class PointController {
      */
     @GetMapping("/function/{funcId}/x/{xValue}")
     public ResponseEntity<Map<String, Object>> getPointByFunctionIdAndXValue(
-            @PathVariable Long funcId, @PathVariable Double xValue) {
+            @PathVariable Long funcId, @PathVariable Double xValue, Authentication auth) {
         logger.info("GET /api/v1/points/function/{}/x/{} - получение точки по x_value", funcId, xValue);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN point by x funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 Optional<Point> pointOpt = points.stream()
                         .filter(p -> Math.abs(p.getXValue() - xValue) < 1e-10)
@@ -188,11 +239,19 @@ public class PointController {
     public ResponseEntity<Map<String, Object>> getPointsByFunctionIdInRange(
             @PathVariable Long funcId,
             @RequestParam Double xMin,
-            @RequestParam Double xMax) {
+            @RequestParam Double xMax,
+            Authentication auth) {
         logger.info("GET /api/v1/points/function/{}/range - получение точек в диапазоне xMin={}, xMax={}", funcId, xMin, xMax);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN points range funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 List<PointDTO> dtos = points.stream()
                         .filter(p -> p.getXValue() >= xMin && p.getXValue() <= xMax)
@@ -219,11 +278,18 @@ public class PointController {
      */
     @GetMapping("/function/{funcId}/y/{yValue}")
     public ResponseEntity<Map<String, Object>> getPointsByFunctionIdAndYValue(
-            @PathVariable Long funcId, @PathVariable Double yValue) {
+            @PathVariable Long funcId, @PathVariable Double yValue, Authentication auth) {
         logger.info("GET /api/v1/points/function/{}/y/{} - получение точек по y_value", funcId, yValue);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN points y funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 List<PointDTO> dtos = points.stream()
                         .filter(p -> Math.abs(p.getYValue() - yValue) < 1e-10)
@@ -252,11 +318,19 @@ public class PointController {
     public ResponseEntity<Map<String, Object>> getPointsByFunctionIdInYRange(
             @PathVariable Long funcId,
             @RequestParam Double yMin,
-            @RequestParam Double yMax) {
+            @RequestParam Double yMax,
+            Authentication auth) {
         logger.info("GET /api/v1/points/function/{}/yRange - получение точек в диапазоне yMin={}, yMax={}", funcId, yMin, yMax);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN points yRange funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 List<PointDTO> dtos = points.stream()
                         .filter(p -> p.getYValue() >= yMin && p.getYValue() <= yMax)
@@ -282,11 +356,18 @@ public class PointController {
      * GET /api/v1/points/function/{funcId}/count
      */
     @GetMapping("/function/{funcId}/count")
-    public ResponseEntity<Map<String, Object>> getPointCountByFunctionId(@PathVariable Long funcId) {
+    public ResponseEntity<Map<String, Object>> getPointCountByFunctionId(@PathVariable Long funcId, Authentication auth) {
         logger.info("GET /api/v1/points/function/{}/count - подсчет точек функции", funcId);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || auth == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN points count funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 Map<String, Object> response = new HashMap<>();
                 response.put("success", true);
@@ -310,11 +391,18 @@ public class PointController {
      * GET /api/v1/points/function/{funcId}/bounds
      */
     @GetMapping("/function/{funcId}/bounds")
-    public ResponseEntity<Map<String, Object>> getBoundsByFunctionId(@PathVariable Long funcId) {
+    public ResponseEntity<Map<String, Object>> getBoundsByFunctionId(@PathVariable Long funcId, Authentication auth) {
         logger.info("GET /api/v1/points/function/{}/bounds - получение границ функции", funcId);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || auth == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN points bounds funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 if (points.isEmpty()) {
                     logger.warn("Нет точек для функции {}", funcId);
@@ -351,7 +439,7 @@ public class PointController {
      * POST /api/v1/points/batch
      */
     @PostMapping("/batch")
-    public ResponseEntity<Map<String, Object>> createPointsBatch(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> createPointsBatch(@RequestBody Map<String, Object> request, Authentication auth) {
         logger.info("POST /api/v1/points/batch - создание нескольких точек");
         try {
             Long funcId = Long.valueOf(request.get("funcId").toString());
@@ -359,6 +447,13 @@ public class PointController {
             if (!functionOpt.isPresent()) {
                 logger.warn("Функция с ID {} не найдена", funcId);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            }
+            if (!AuthUtil.isAdmin(auth)) {
+                Function f = functionOpt.get();
+                if (f.getUser() == null || auth == null || !auth.getName().equals(f.getUser().getLogin())) {
+                    logger.warn("FORBIDDEN points batch funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
             }
             
             @SuppressWarnings("unchecked")
@@ -398,11 +493,23 @@ public class PointController {
     @PatchMapping("/{id}/y")
     public ResponseEntity<Map<String, Object>> updatePointY(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> request) {
+            @RequestBody Map<String, Object> request,
+            Authentication auth) {
         logger.info("PATCH /api/v1/points/{}/y - обновление y_value", id);
         try {
             Optional<Point> pointOpt = pointRepository.findById(id);
             if (pointOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Point p = pointOpt.get();
+                    Long funcId = p.getFunction() != null ? p.getFunction().getId() : null;
+                    if (funcId == null) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    var fOpt = functionRepository.findById(funcId);
+                    if (fOpt.isEmpty() || fOpt.get().getUser() == null || auth == null ||
+                            !auth.getName().equals(fOpt.get().getUser().getLogin())) {
+                        logger.warn("FORBIDDEN point y update id={} login={}", id, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 Point point = pointOpt.get();
                 Double newY = Double.valueOf(request.get("yValue").toString());
                 point.setYValue(newY);
@@ -432,11 +539,19 @@ public class PointController {
     public ResponseEntity<Map<String, Object>> updatePointYByXValue(
             @PathVariable Long funcId,
             @PathVariable Double xValue,
-            @RequestBody Map<String, Object> request) {
+            @RequestBody Map<String, Object> request,
+            Authentication auth) {
         logger.info("PATCH /api/v1/points/function/{}/x/{}/y - обновление y_value по x_value", funcId, xValue);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || auth == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN point y by x funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 Optional<Point> pointOpt = points.stream()
                         .filter(p -> Math.abs(p.getXValue() - xValue) < 1e-10)
@@ -474,11 +589,19 @@ public class PointController {
     @PatchMapping("/function/{funcId}/multiply")
     public ResponseEntity<Map<String, Object>> multiplyPointsByCoefficient(
             @PathVariable Long funcId,
-            @RequestParam Double coefficient) {
+            @RequestParam Double coefficient,
+            Authentication auth) {
         logger.info("PATCH /api/v1/points/function/{}/multiply?coefficient={} - умножение y_value", funcId, coefficient);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || auth == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN points multiply funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 int updated = 0;
                 for (Point point : points) {
@@ -508,11 +631,22 @@ public class PointController {
      * Удалить точку по ID
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deletePoint(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> deletePoint(@PathVariable Long id, Authentication auth) {
         logger.info("DELETE /api/v1/points/{} - удаление точки", id);
         try {
             Optional<Point> pointOpt = pointRepository.findById(id);
             if (pointOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Point p = pointOpt.get();
+                    Long funcId = p.getFunction() != null ? p.getFunction().getId() : null;
+                    if (funcId == null) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    var fOpt = functionRepository.findById(funcId);
+                    if (fOpt.isEmpty() || fOpt.get().getUser() == null || auth == null ||
+                            !auth.getName().equals(fOpt.get().getUser().getLogin())) {
+                        logger.warn("FORBIDDEN point delete id={} login={}", id, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 pointRepository.deleteById(id);
                 Map<String, Object> response = new HashMap<>();
                 response.put("success", true);
@@ -535,11 +669,18 @@ public class PointController {
      */
     @DeleteMapping("/function/{funcId}/x/{xValue}")
     public ResponseEntity<Map<String, Object>> deletePointByFunctionIdAndXValue(
-            @PathVariable Long funcId, @PathVariable Double xValue) {
+            @PathVariable Long funcId, @PathVariable Double xValue, Authentication auth) {
         logger.info("DELETE /api/v1/points/function/{}/x/{} - удаление точки по x_value", funcId, xValue);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || auth == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN point delete by x funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 Optional<Point> pointOpt = points.stream()
                         .filter(p -> Math.abs(p.getXValue() - xValue) < 1e-10)
@@ -570,11 +711,18 @@ public class PointController {
      * DELETE /api/v1/points/function/{funcId}
      */
     @DeleteMapping("/function/{funcId}")
-    public ResponseEntity<Map<String, Object>> deletePointsByFunctionId(@PathVariable Long funcId) {
+    public ResponseEntity<Map<String, Object>> deletePointsByFunctionId(@PathVariable Long funcId, Authentication auth) {
         logger.info("DELETE /api/v1/points/function/{} - удаление всех точек функции", funcId);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || auth == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN points delete funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 int deleted = 0;
                 for (Point point : points) {
@@ -604,11 +752,19 @@ public class PointController {
     public ResponseEntity<Map<String, Object>> deletePointsByFunctionIdInRange(
             @PathVariable Long funcId,
             @RequestParam Double xMin,
-            @RequestParam Double xMax) {
+            @RequestParam Double xMax,
+            Authentication auth) {
         logger.info("DELETE /api/v1/points/function/{}/range - удаление точек в диапазоне xMin={}, xMax={}", funcId, xMin, xMax);
         try {
             Optional<Function> functionOpt = functionRepository.findById(funcId);
             if (functionOpt.isPresent()) {
+                if (!AuthUtil.isAdmin(auth)) {
+                    Function f = functionOpt.get();
+                    if (f.getUser() == null || auth == null || !auth.getName().equals(f.getUser().getLogin())) {
+                        logger.warn("FORBIDDEN points delete range funcId={} login={}", funcId, auth == null ? null : auth.getName());
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
                 List<Point> points = pointRepository.findByFunction(functionOpt.get());
                 List<Point> toDelete = points.stream()
                         .filter(p -> p.getXValue() >= xMin && p.getXValue() <= xMax)
