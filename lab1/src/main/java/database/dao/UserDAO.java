@@ -191,22 +191,18 @@ public class UserDAO {
     }
     
     /**
-     * Добавляет пользователя без email
+     * Добавляет пользователя без email (роль по умолчанию USER)
      * @return ID созданного пользователя
      */
     public Long insert(String login, String password) throws SQLException {
-        return insert(login, password, "USER");
-    }
-
-    public Long insert(String login, String password, String role) throws SQLException {
-        logger.info("Вставка нового пользователя без email: login={} role={}", login, role);
+        logger.info("Вставка нового пользователя без email: login={} role=USER", login);
         try (Connection connection = ConnectionManager.getConnection();
              PreparedStatement statement = connection.prepareStatement(INSERT_WITHOUT_EMAIL, Statement.RETURN_GENERATED_KEYS)) {
-            
+
             statement.setString(1, login);
             statement.setString(2, password);
-            statement.setString(3, role);
-            
+            statement.setString(3, "USER");
+
             int rowsAffected = statement.executeUpdate();
             if (rowsAffected > 0) {
                 ResultSet rs = statement.getGeneratedKeys();
