@@ -1,0 +1,12 @@
+.git
+.gitignore
+target
+**/target
+**/.idea
+*.iml
+*.log
+newman-results
+postman/newman
+node_modules
+*.class
+

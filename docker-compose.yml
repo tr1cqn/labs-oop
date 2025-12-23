@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  lab6-api:
+    image: labs-oop-framework:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+
