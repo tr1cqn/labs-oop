@@ -3,13 +3,9 @@ FROM maven:3.9-eclipse-temurin-11 AS build
 
 WORKDIR /app
 
-# Копируем pom.xml и загружаем зависимости (кэширование слоя)
-COPY pom.xml .
+# Копируем ВСЁ и собираем проект
+COPY . .
 RUN mvn dependency:go-offline -B
-
-# Копируем исходный код и собираем WAR
-COPY lab1 ./lab1
-WORKDIR /app/lab1
 RUN mvn clean package -DskipTests -B
 
 # Финальный образ с Tomcat
@@ -36,4 +32,3 @@ EXPOSE 8080
 
 # Запускаем Tomcat
 CMD ["catalina.sh", "run"]
-
