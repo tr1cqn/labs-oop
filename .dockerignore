@@ -1,0 +1,13 @@
+target/
+.git/
+.gitignore
+*.iml
+.idea/
+.vscode/
+newman-results/
+logs/
+*.log
+.DS_Store
+*.md
+!README.md
+
